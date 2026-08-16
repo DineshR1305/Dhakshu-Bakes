@@ -37,4 +37,12 @@ public class AuthController {
         ApiResponse<AuthDTO.UserDTO> response = authService.getCurrentUser(currentUser);
         return ResponseEntity.ok(response);
     }
+
+    @PutMapping("/profile")
+    public ResponseEntity<ApiResponse<AuthDTO.UserDTO>> updateProfile(
+            @AuthenticationPrincipal UserPrincipal currentUser,
+            @Valid @RequestBody AuthDTO.UpdateProfileRequest request) {
+        ApiResponse<AuthDTO.UserDTO> response = authService.updateUserProfile(currentUser, request);
+        return ResponseEntity.ok(response);
+    }
 }

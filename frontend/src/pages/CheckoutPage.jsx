@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Truck, Calendar, Clock, Gift, CreditCard, Lock, CheckCircle, Tag, Trash2 } from 'lucide-react';
+import { ShieldCheck, Truck, Calendar, Clock, Gift, CreditCard, Lock, CheckCircle, Tag, Trash2, MapPin } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
@@ -55,7 +55,38 @@ export default function CheckoutPage() {
     if (appliedCoupon && cart.subtotal > 0) {
       validateCoupon(appliedCoupon);
     }
-  }, [cart.subtotal]);
+
+    // Load saved user addresses
+    if (user) {
+      loadSavedAddresses();
+    }
+  }, [cart.subtotal, user]);
+
+  const loadSavedAddresses = async () => {
+    try {
+      const res = await api.get('/addresses');
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setAddresses(res.data);
+        const def = res.data.find(a => a.isDefault) || res.data[0];
+        if (def) {
+          applySavedAddress(def);
+        }
+      }
+    } catch (e) {
+      console.error('Error loading saved addresses:', e);
+    }
+  };
+
+  const applySavedAddress = (addr) => {
+    setSelectedAddressId(addr.id);
+    setFullName(addr.fullName);
+    setPhone(addr.phone);
+    setAddressLine1(addr.addressLine1);
+    setAddressLine2(addr.addressLine2 || '');
+    setCity(addr.city);
+    setState(addr.state);
+    setPostalCode(addr.postalCode);
+  };
 
   const validateCoupon = async (code) => {
     if (!code) return;
@@ -102,6 +133,7 @@ export default function CheckoutPage() {
 
     try {
       const orderPayload = {
+        shippingAddressId: selectedAddressId,
         fullName,
         phone,
         addressLine1,
@@ -117,65 +149,14 @@ export default function CheckoutPage() {
         couponCode: appliedCoupon || null,
       };
 
-      const res = await api.post('/orders', orderPayload);
+      const res = await api.post('/orders/checkout', orderPayload);
 
       if (res.success && res.data) {
-        const { order, razorpayOrder } = res.data;
-
-        // Initialize Razorpay Checkout Modal
-        const rzpData = razorpayOrder;
-
-        const options = {
-          key: rzpData.keyId,
-          amount: rzpData.amount,
-          currency: rzpData.currency,
-          name: 'Dhakshu Bakes',
-          description: `Order #${order.orderNumber}`,
-          order_id: rzpData.razorpayOrderId.startsWith('order_rzp_') ? undefined : rzpData.razorpayOrderId,
-          handler: async function (response) {
-            try {
-              const verifyRes = await api.post('/payments/verify-razorpay', {
-                orderId: order.id,
-                razorpayOrderId: rzpData.razorpayOrderId,
-                razorpayPaymentId: response.razorpay_payment_id || 'pay_sample_' + Date.now(),
-                razorpaySignature: response.razorpay_signature || 'sig_sample_' + Date.now(),
-              });
-
-              if (verifyRes.success) {
-                clearCart();
-                localStorage.removeItem('dhakshu_applied_coupon');
-                showToast('Payment successful! Your order is being baked.', 'success');
-                navigate(`/orders/${order.orderNumber}`);
-              } else {
-                showToast('Payment signature verification failed.', 'error');
-              }
-            } catch (e) {
-              showToast(e.message || 'Error completing payment verification', 'error');
-            }
-          },
-          prefill: {
-            name: rzpData.customerName,
-            email: rzpData.customerEmail,
-            contact: rzpData.customerPhone,
-          },
-          theme: {
-            color: '#8C5A3C',
-          },
-        };
-
-        if (window.Razorpay) {
-          const rzp = new window.Razorpay(options);
-          rzp.on('payment.failed', function (resp) {
-            showToast(resp.error.description || 'Payment process failed or cancelled', 'error');
-          });
-          rzp.open();
-        } else {
-          // Fallback simulation if Razorpay JS SDK fails to load
-          clearCart();
-          localStorage.removeItem('dhakshu_applied_coupon');
-          showToast('Order created! (Razorpay SDK sandbox mode)', 'success');
-          navigate(`/orders/${order.orderNumber}`);
-        }
+        const order = res.data;
+        clearCart();
+        localStorage.removeItem('dhakshu_applied_coupon');
+        showToast('Order created successfully!', 'success');
+        navigate(`/orders/${order.orderNumber}`);
       } else {
         showToast(res.message || 'Failed to place order', 'error');
       }
@@ -217,10 +198,39 @@ export default function CheckoutPage() {
           
           {/* Step 1: Shipping Address */}
           <div className="bg-white p-6 rounded-2xl border border-cream-200 shadow-xs space-y-4">
-            <h3 className="font-serif font-bold text-base text-bakery-dark flex items-center gap-2">
-              <Truck className="w-5 h-5 text-bakery-caramel" />
-              <span>1. Shipping Address</span>
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-serif font-bold text-base text-bakery-dark flex items-center gap-2">
+                <Truck className="w-5 h-5 text-bakery-caramel" />
+                <span>1. Shipping Address</span>
+              </h3>
+            </div>
+
+            {/* Saved Address Selector */}
+            {addresses.length > 0 && (
+              <div className="space-y-2 pt-1 border-b border-cream-200 pb-4">
+                <label className="block text-xs font-bold text-gray-700">Select Saved Address:</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {addresses.map((addr) => (
+                    <button
+                      key={addr.id}
+                      type="button"
+                      onClick={() => applySavedAddress(addr)}
+                      className={`p-3 rounded-xl border text-left text-xs transition-all ${
+                        selectedAddressId === addr.id
+                          ? 'border-bakery-caramel bg-cream-100/70 font-bold text-bakery-dark shadow-2xs'
+                          : 'border-cream-300 bg-white text-gray-600 hover:border-cream-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold">{addr.fullName}</span>
+                        {addr.isDefault && <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">Default</span>}
+                      </div>
+                      <p className="truncate text-gray-500 text-[11px] mt-0.5">{addr.addressLine1}, {addr.city}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -354,25 +364,25 @@ export default function CheckoutPage() {
             </label>
 
             {isGift && (
-              <div className="space-y-3 pt-2 border-t border-cream-100 animate-fadeIn">
+              <div className="space-y-3 pt-2 border-t border-cream-100 animate-fadeIn text-xs">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Recipient Name</label>
+                  <label className="block font-bold text-gray-700 mb-1">Recipient Name</label>
                   <input
                     type="text"
                     placeholder="Name of the person receiving the gift"
                     value={recipientName}
                     onChange={(e) => setRecipientName(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg"
+                    className="w-full px-3 py-2 bg-cream-100 border border-cream-300 rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Custom Gift Message</label>
+                  <label className="block font-bold text-gray-700 mb-1">Custom Gift Message</label>
                   <textarea
                     rows={2}
                     placeholder="Wishing you a wonderful celebration! Warm wishes..."
                     value={giftMessage}
                     onChange={(e) => setGiftMessage(e.target.value)}
-                    className="w-full p-2.5 text-xs bg-cream-100 border border-cream-300 rounded-lg"
+                    className="w-full p-2.5 bg-cream-100 border border-cream-300 rounded-lg"
                   />
                 </div>
               </div>
@@ -438,7 +448,7 @@ export default function CheckoutPage() {
             className="w-full py-4 bg-bakery-caramel hover:bg-bakery text-white font-bold text-sm rounded-full shadow-lg transition-all flex items-center justify-center gap-2 min-h-[48px] disabled:opacity-60"
           >
             <Lock className="w-4 h-4" />
-            <span>{submitting ? <ButtonLoader text="Initializing Payment..." /> : `Pay ₹${finalTotal} with Razorpay`}</span>
+            <span>{submitting ? <ButtonLoader text="Processing Order..." /> : `Place Order (₹${finalTotal})`}</span>
           </button>
 
           <div className="text-center space-y-1">

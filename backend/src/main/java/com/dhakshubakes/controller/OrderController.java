@@ -38,6 +38,13 @@ public class OrderController {
         return ResponseEntity.ok(orderService.getOrderByNumber(userPrincipal, orderNumber));
     }
 
+    @GetMapping("/{orderNumber}/receipt")
+    public ResponseEntity<ApiResponse<OrderDTO.Response>> getOrderReceipt(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @PathVariable String orderNumber) {
+        return ResponseEntity.ok(orderService.getOrderByNumber(userPrincipal, orderNumber));
+    }
+
     @PostMapping("/{id}/cancel")
     public ResponseEntity<ApiResponse<OrderDTO.Response>> cancelOrder(
             @AuthenticationPrincipal UserPrincipal userPrincipal,

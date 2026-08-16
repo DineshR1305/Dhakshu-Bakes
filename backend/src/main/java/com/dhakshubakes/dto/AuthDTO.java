@@ -42,6 +42,15 @@ public class AuthDTO {
     }
 
     @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class UpdateProfileRequest {
+        @NotBlank(message = "Full name is required")
+        private String fullName;
+        private String phone;
+    }
+
+    @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor

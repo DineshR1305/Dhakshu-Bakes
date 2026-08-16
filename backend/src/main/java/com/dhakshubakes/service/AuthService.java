@@ -104,6 +104,22 @@ public class AuthService {
         return ApiResponse.success("Current user fetched successfully", mapToUserDTO(user));
     }
 
+    @Transactional
+    public ApiResponse<AuthDTO.UserDTO> updateUserProfile(UserPrincipal currentUser, AuthDTO.UpdateProfileRequest request) {
+        if (currentUser == null) {
+            return ApiResponse.error("User not authenticated", "UNAUTHORIZED");
+        }
+
+        User user = userRepository.findById(currentUser.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        user.setFullName(request.getFullName().trim());
+        user.setPhone(request.getPhone() != null ? request.getPhone().trim() : null);
+
+        User saved = userRepository.save(user);
+        return ApiResponse.success("Profile updated successfully", mapToUserDTO(saved));
+    }
+
     private AuthDTO.UserDTO mapToUserDTO(User user) {
         return AuthDTO.UserDTO.builder()
                 .id(user.getId())
