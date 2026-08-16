@@ -36,3 +36,6 @@ frontend/.vite/
 *.swo
 .DS_Store
 Thumbs.db
+
+# Local Antigravity verification scripts
+scratch/

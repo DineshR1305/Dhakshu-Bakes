@@ -5,6 +5,8 @@ import com.dhakshubakes.dto.ApiResponse;
 import com.dhakshubakes.dto.OrderDTO;
 import com.dhakshubakes.dto.ProductDTO;
 import com.dhakshubakes.entity.*;
+import com.dhakshubakes.exception.BadRequestException;
+import com.dhakshubakes.exception.ResourceNotFoundException;
 import com.dhakshubakes.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,9 +26,6 @@ public class AdminService {
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
     private final InventoryRepository inventoryRepository;
-    private final CategoryRepository categoryRepository;
-    private final ReviewRepository reviewRepository;
-    private final CouponRepository couponRepository;
     private final OrderService orderService;
     private final ProductService productService;
 
@@ -81,23 +80,40 @@ public class AdminService {
 
     @Transactional
     public ApiResponse<OrderDTO.Response> updateOrderStatus(Long orderId, OrderStatus status) {
-        Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new RuntimeException("Order not found"));
-        order.setOrderStatus(status);
-        if (status == OrderStatus.DELIVERED) {
-            order.setPaymentStatus(PaymentStatus.PAID);
-        }
-        Order saved = orderRepository.save(order);
-        return ApiResponse.success("Order status updated to " + status, orderService.mapToResponse(saved));
+        return orderService.updateOrderStatus(orderId, status);
     }
 
     @Transactional
     public ApiResponse<Inventory> updateInventoryStock(Long variantId, Integer stockQuantity) {
+        if (stockQuantity == null || stockQuantity < 0) {
+            throw new BadRequestException("Stock quantity cannot be negative");
+        }
+
         Inventory inventory = inventoryRepository.findByVariantId(variantId)
-                .orElseThrow(() -> new RuntimeException("Inventory record not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Inventory record not found for variant ID: " + variantId));
+        
         inventory.setStockQuantity(stockQuantity);
         inventory.setOutOfStock(stockQuantity <= 0);
         Inventory saved = inventoryRepository.save(inventory);
-        return ApiResponse.success("Stock updated", saved);
+        return ApiResponse.success("Stock updated successfully", saved);
+    }
+
+    @Transactional(readOnly = true)
+    public String exportOrdersCsv() {
+        List<Order> orders = orderRepository.findAllByOrderByCreatedAtDesc();
+        StringBuilder csv = new StringBuilder();
+        csv.append("Order Number,Customer Name,Customer Email,Date,Total Amount,Payment Status,Order Status\n");
+        for (Order o : orders) {
+            csv.append(String.format("\"%s\",\"%s\",\"%s\",\"%s\",%.2f,\"%s\",\"%s\"\n",
+                    o.getOrderNumber(),
+                    o.getUser().getFullName().replace("\"", "\"\""),
+                    o.getUser().getEmail().replace("\"", "\"\""),
+                    o.getCreatedAt() != null ? o.getCreatedAt().toString() : "",
+                    o.getTotalAmount(),
+                    o.getPaymentStatus(),
+                    o.getOrderStatus()
+            ));
+        }
+        return csv.toString();
     }
 }

@@ -116,6 +116,59 @@ public class CartService {
                 .orElseGet(() -> cartRepository.save(Cart.builder().sessionId(sessionKey).items(new ArrayList<>()).build()));
     }
 
+    @Transactional
+    public ApiResponse<CartDTO.Response> mergeGuestCartToUserCart(UserPrincipal userPrincipal, String sessionId) {
+        if (userPrincipal == null) {
+            return ApiResponse.error("Authentication required to merge cart", "UNAUTHORIZED");
+        }
+        if (sessionId == null || sessionId.isBlank()) {
+            return getOrCreateCart(userPrincipal, null);
+        }
+
+        Cart guestCart = cartRepository.findBySessionId(sessionId).orElse(null);
+        if (guestCart == null || guestCart.getItems().isEmpty()) {
+            return getOrCreateCart(userPrincipal, null);
+        }
+
+        User user = userRepository.findById(userPrincipal.getId())
+                .orElseThrow(() -> new com.dhakshubakes.exception.ResourceNotFoundException("User not found"));
+
+        Cart userCart = cartRepository.findByUserId(user.getId())
+                .orElseGet(() -> cartRepository.save(Cart.builder().user(user).items(new ArrayList<>()).build()));
+
+        for (CartItem guestItem : guestCart.getItems()) {
+            ProductVariant variant = guestItem.getVariant();
+            int maxStock = variant.getInventory() != null ? variant.getInventory().getStockQuantity() : 999;
+
+            Optional<CartItem> existingUserItem = userCart.getItems().stream()
+                    .filter(item -> item.getVariant().getId().equals(variant.getId()))
+                    .findFirst();
+
+            if (existingUserItem.isPresent()) {
+                CartItem userItem = existingUserItem.get();
+                int mergedQty = Math.min(maxStock, userItem.getQuantity() + guestItem.getQuantity());
+                userItem.setQuantity(mergedQty);
+            } else {
+                int safeQty = Math.min(maxStock, guestItem.getQuantity());
+                CartItem newItem = CartItem.builder()
+                        .cart(userCart)
+                        .product(guestItem.getProduct())
+                        .variant(variant)
+                        .quantity(safeQty)
+                        .build();
+                userCart.getItems().add(newItem);
+            }
+        }
+
+        Cart savedUserCart = cartRepository.save(userCart);
+
+        // Delete guest cart to complete clean merge
+        guestCart.getItems().clear();
+        cartRepository.delete(guestCart);
+
+        return ApiResponse.success("Cart merged successfully", mapToResponse(savedUserCart));
+    }
+
     private CartDTO.Response mapToResponse(Cart cart) {
         List<CartDTO.ItemResponse> items = cart.getItems().stream().map(item -> {
             BigDecimal price = item.getVariant().getDiscountPrice() != null ? item.getVariant().getDiscountPrice() : item.getVariant().getPrice();

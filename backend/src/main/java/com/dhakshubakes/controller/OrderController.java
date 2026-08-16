@@ -37,4 +37,11 @@ public class OrderController {
             @PathVariable String orderNumber) {
         return ResponseEntity.ok(orderService.getOrderByNumber(userPrincipal, orderNumber));
     }
+
+    @PostMapping("/{id}/cancel")
+    public ResponseEntity<ApiResponse<OrderDTO.Response>> cancelOrder(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(orderService.cancelOrder(userPrincipal, id));
+    }
 }

@@ -28,7 +28,7 @@ public class CategoryService {
     @Transactional(readOnly = true)
     public ApiResponse<CategoryDTO.Response> getCategoryBySlug(String slug) {
         Category category = categoryRepository.findBySlug(slug)
-                .orElseThrow(() -> new RuntimeException("Category not found with slug: " + slug));
+                .orElseThrow(() -> new com.dhakshubakes.exception.ResourceNotFoundException("Category not found with slug: " + slug));
         return ApiResponse.success("Category retrieved successfully", mapToResponse(category));
     }
 

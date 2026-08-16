@@ -21,4 +21,5 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     BigDecimal calculateTotalRevenue();
 
     Long countByOrderStatus(OrderStatus orderStatus);
+    boolean existsByUserIdAndItemsProductIdAndOrderStatus(Long userId, Long productId, OrderStatus orderStatus);
 }

@@ -47,4 +47,11 @@ public class CartController {
             @PathVariable Long itemId) {
         return ResponseEntity.ok(cartService.removeItem(userPrincipal, sessionId, itemId));
     }
+
+    @PostMapping("/merge")
+    public ResponseEntity<ApiResponse<CartDTO.Response>> mergeCart(
+            @AuthenticationPrincipal UserPrincipal userPrincipal,
+            @RequestHeader(value = "X-Session-Id", required = false) String sessionId) {
+        return ResponseEntity.ok(cartService.mergeGuestCartToUserCart(userPrincipal, sessionId));
+    }
 }

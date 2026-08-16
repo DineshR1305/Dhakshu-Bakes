@@ -7,6 +7,7 @@ import com.dhakshubakes.entity.Inventory;
 import com.dhakshubakes.entity.Product;
 import com.dhakshubakes.entity.ProductImage;
 import com.dhakshubakes.entity.ProductVariant;
+import com.dhakshubakes.exception.ResourceNotFoundException;
 import com.dhakshubakes.repository.CategoryRepository;
 import com.dhakshubakes.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -78,7 +79,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public ApiResponse<ProductDTO.Response> getProductBySlug(String slug) {
         Product product = productRepository.findBySlug(slug)
-                .orElseThrow(() -> new RuntimeException("Product not found with slug: " + slug));
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with slug: " + slug));
         return ApiResponse.success("Product fetched successfully", mapToResponse(product));
     }
 

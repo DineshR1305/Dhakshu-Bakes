@@ -3,8 +3,13 @@ package com.dhakshubakes.service;
 import com.dhakshubakes.dto.ApiResponse;
 import com.dhakshubakes.dto.CouponDTO;
 import com.dhakshubakes.entity.Coupon;
+import com.dhakshubakes.entity.CouponUsage;
+import com.dhakshubakes.entity.Order;
+import com.dhakshubakes.entity.User;
 import com.dhakshubakes.repository.CouponRepository;
+import com.dhakshubakes.repository.CouponUsageRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,11 +17,13 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class CouponService {
 
     private final CouponRepository couponRepository;
+    private final CouponUsageRepository couponUsageRepository;
 
     @Transactional(readOnly = true)
     public ApiResponse<CouponDTO.ValidationResponse> validateCoupon(CouponDTO.ValidateRequest request) {
@@ -76,6 +83,30 @@ public class CouponService {
                 .build();
 
         return ApiResponse.success("Coupon validated", response);
+    }
+
+    @Transactional
+    public void recordCouponUsage(User user, Coupon coupon, Order order) {
+        if (user == null || coupon == null || order == null) return;
+
+        boolean alreadyRecorded = couponUsageRepository.existsByOrderIdAndCouponId(order.getId(), coupon.getId());
+        if (alreadyRecorded) {
+            log.info("Coupon usage already recorded for order: {}", order.getOrderNumber());
+            return;
+        }
+
+        // Increment usage count
+        coupon.setUsedCount(coupon.getUsedCount() + 1);
+        couponRepository.save(coupon);
+
+        // Record audit trail
+        CouponUsage usage = CouponUsage.builder()
+                .user(user)
+                .coupon(coupon)
+                .order(order)
+                .build();
+        couponUsageRepository.save(usage);
+        log.info("Successfully recorded coupon usage for code: {} on order: {}", coupon.getCode(), order.getOrderNumber());
     }
 
     public BigDecimal calculateCouponDiscount(String code, BigDecimal subtotal) {

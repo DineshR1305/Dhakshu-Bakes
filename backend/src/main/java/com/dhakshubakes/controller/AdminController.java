@@ -3,17 +3,16 @@ package com.dhakshubakes.controller;
 import com.dhakshubakes.dto.AdminDashboardDTO;
 import com.dhakshubakes.dto.ApiResponse;
 import com.dhakshubakes.dto.OrderDTO;
-import com.dhakshubakes.dto.ProductDTO;
+import com.dhakshubakes.dto.ReviewDTO;
 import com.dhakshubakes.entity.*;
 import com.dhakshubakes.repository.*;
 import com.dhakshubakes.service.AdminService;
 import com.dhakshubakes.service.OrderService;
-import com.dhakshubakes.service.ProductService;
+import com.dhakshubakes.service.ReviewService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -26,15 +25,12 @@ public class AdminController {
     private final AdminService adminService;
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
-    private final ProductRepository productRepository;
-    private final CategoryRepository categoryRepository;
     private final InventoryRepository inventoryRepository;
     private final CouponRepository couponRepository;
-    private final ReviewRepository reviewRepository;
     private final WholesaleInquiryRepository wholesaleRepository;
     private final ContactInquiryRepository contactRepository;
     private final OrderService orderService;
-    private final ProductService productService;
+    private final ReviewService reviewService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<ApiResponse<AdminDashboardDTO>> getDashboard() {
@@ -47,6 +43,15 @@ public class AdminController {
                 .map(orderService::mapToResponse)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(ApiResponse.success("All orders retrieved", orders));
+    }
+
+    @GetMapping("/orders/export-csv")
+    public ResponseEntity<String> exportOrdersCsv() {
+        String csvData = adminService.exportOrdersCsv();
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/csv")
+                .header("Content-Disposition", "attachment; filename=\"dhakshu_bakes_orders.csv\"")
+                .body(csvData);
     }
 
     @PutMapping("/orders/{orderId}/status")
@@ -73,6 +78,14 @@ public class AdminController {
             @RequestBody Map<String, Integer> body) {
         Integer stock = body.get("stockQuantity");
         return ResponseEntity.ok(adminService.updateInventoryStock(variantId, stock));
+    }
+
+    @PutMapping("/reviews/{reviewId}/status")
+    public ResponseEntity<ApiResponse<ReviewDTO.Response>> updateReviewStatus(
+            @PathVariable Long reviewId,
+            @RequestBody Map<String, String> body) {
+        String status = body.get("status");
+        return ResponseEntity.ok(reviewService.updateReviewStatus(reviewId, status));
     }
 
     @GetMapping("/coupons")

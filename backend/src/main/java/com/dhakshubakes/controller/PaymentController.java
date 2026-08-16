@@ -8,10 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/payments")
@@ -32,5 +29,12 @@ public class PaymentController {
             @AuthenticationPrincipal UserPrincipal userPrincipal,
             @Valid @RequestBody PaymentDTO.VerifyPaymentRequest request) {
         return ResponseEntity.ok(paymentService.verifyPayment(userPrincipal, request));
+    }
+
+    @PostMapping("/webhook")
+    public ResponseEntity<ApiResponse<Boolean>> handleRazorpayWebhook(
+            @RequestHeader("X-Razorpay-Signature") String signature,
+            @RequestBody String rawPayload) {
+        return ResponseEntity.ok(paymentService.processRazorpayWebhook(rawPayload, signature));
     }
 }

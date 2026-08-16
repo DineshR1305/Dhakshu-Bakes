@@ -16,6 +16,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.regex.Pattern;
+
 @Service
 @RequiredArgsConstructor
 public class AuthService {
@@ -25,10 +27,22 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
 
+    // Password rule: min 8 chars, at least 1 uppercase, 1 lowercase, 1 digit, 1 special char
+    private static final Pattern PASSWORD_PATTERN = Pattern.compile(
+            "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$"
+    );
+
     @Transactional
     public ApiResponse<AuthDTO.JwtAuthResponse> registerUser(AuthDTO.RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             return ApiResponse.error("Email is already in use", "EMAIL_ALREADY_EXISTS");
+        }
+
+        if (request.getPassword() == null || !PASSWORD_PATTERN.matcher(request.getPassword()).matches()) {
+            return ApiResponse.error(
+                    "Password must be at least 8 characters long, and contain at least one uppercase letter, one lowercase letter, one number, and one special character (@$!%*?&).",
+                    "WEAK_PASSWORD"
+            );
         }
 
         User user = User.builder()

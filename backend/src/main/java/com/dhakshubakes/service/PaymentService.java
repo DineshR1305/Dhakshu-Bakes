@@ -3,10 +3,14 @@ package com.dhakshubakes.service;
 import com.dhakshubakes.dto.ApiResponse;
 import com.dhakshubakes.dto.PaymentDTO;
 import com.dhakshubakes.entity.*;
+import com.dhakshubakes.exception.BadRequestException;
+import com.dhakshubakes.repository.CouponRepository;
 import com.dhakshubakes.repository.InventoryRepository;
 import com.dhakshubakes.repository.OrderRepository;
 import com.dhakshubakes.repository.PaymentRepository;
 import com.dhakshubakes.security.UserPrincipal;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +33,9 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final InventoryRepository inventoryRepository;
+    private final CouponRepository couponRepository;
+    private final CouponService couponService;
+    private final ObjectMapper objectMapper;
 
     @Value("${dhakshu.app.razorpayKeyId}")
     private String razorpayKeyId;
@@ -36,16 +43,18 @@ public class PaymentService {
     @Value("${dhakshu.app.razorpayKeySecret}")
     private String razorpayKeySecret;
 
+    @Value("${dhakshu.app.razorpayWebhookSecret}")
+    private String razorpayWebhookSecret;
+
     @Transactional
     public ApiResponse<PaymentDTO.RazorpayOrderResponse> createRazorpayOrder(UserPrincipal userPrincipal, PaymentDTO.CreateRazorpayOrderRequest request) {
         Order order = orderRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new BadRequestException("Order not found"));
 
         if (!order.getUser().getId().equals(userPrincipal.getId())) {
             return ApiResponse.error("Unauthorized access to order", "UNAUTHORIZED");
         }
 
-        // Generate synthetic or real Razorpay order ID
         String razorpayOrderId = "order_rzp_" + System.currentTimeMillis();
 
         Payment payment = Payment.builder()
@@ -76,43 +85,96 @@ public class PaymentService {
     @Transactional
     public ApiResponse<Boolean> verifyPayment(UserPrincipal userPrincipal, PaymentDTO.VerifyPaymentRequest request) {
         Order order = orderRepository.findById(request.getOrderId())
-                .orElseThrow(() -> new RuntimeException("Order not found"));
+                .orElseThrow(() -> new BadRequestException("Order not found"));
+
+        // Idempotency check: if order is already paid, return success without re-processing
+        if (order.getPaymentStatus() == PaymentStatus.PAID) {
+            log.info("Order {} is already marked PAID. Idempotent check returning success.", order.getOrderNumber());
+            return ApiResponse.success("Payment already verified", true);
+        }
 
         // Verify Razorpay HMAC-SHA256 signature
         String payload = request.getRazorpayOrderId() + "|" + request.getRazorpayPaymentId();
         boolean isValidSignature = verifyHmacSha256(payload, request.getRazorpaySignature(), razorpayKeySecret);
 
-        // Fallback for test mode placeholders
-        if (!isValidSignature && razorpayKeySecret.startsWith("rzp_test_placeholder")) {
-            log.warn("Test mode detected: bypassing Razorpay signature check for placeholder secret.");
-            isValidSignature = true;
-        }
-
         if (!isValidSignature) {
+            log.error("Payment verification failed for order {}. Signature mismatch.", order.getOrderNumber());
             order.setPaymentStatus(PaymentStatus.FAILED);
             order.setOrderStatus(OrderStatus.CANCELLED);
             orderRepository.save(order);
             return ApiResponse.error("Payment verification failed. Invalid signature.", "PAYMENT_FAILED");
         }
 
-        // Update Payment entity
+        // Process successful payment
+        fulfillSuccessfulPayment(order, request.getRazorpayPaymentId(), request.getRazorpaySignature(), "Razorpay Online Modal");
+
+        return ApiResponse.success("Payment verified successfully", true);
+    }
+
+    @Transactional
+    public ApiResponse<Boolean> processRazorpayWebhook(String rawPayload, String signature) {
+        if (signature == null || signature.isBlank()) {
+            throw new BadRequestException("Missing Razorpay signature header");
+        }
+
+        boolean isValidSignature = verifyHmacSha256(rawPayload, signature, razorpayWebhookSecret);
+        if (!isValidSignature) {
+            log.error("Razorpay Webhook signature verification failed!");
+            throw new BadRequestException("Invalid Razorpay Webhook signature");
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(rawPayload);
+            String event = root.path("event").asText();
+
+            log.info("Processing Razorpay Webhook event: {}", event);
+
+            if ("payment.captured".equalsIgnoreCase(event)) {
+                JsonNode paymentEntity = root.path("payload").path("payment").path("entity");
+                String razorpayOrderId = paymentEntity.path("order_id").asText();
+                String razorpayPaymentId = paymentEntity.path("id").asText();
+                String paymentMethod = paymentEntity.path("method").asText("Razorpay Webhook");
+
+                Payment payment = paymentRepository.findByRazorpayOrderId(razorpayOrderId).orElse(null);
+                if (payment == null) {
+                    log.warn("Webhook received for unknown Razorpay Order ID: {}", razorpayOrderId);
+                    return ApiResponse.success("Webhook processed (Order not found)", true);
+                }
+
+                Order order = payment.getOrder();
+                if (order.getPaymentStatus() == PaymentStatus.PAID) {
+                    log.info("Webhook idempotent check: Order {} is already PAID.", order.getOrderNumber());
+                    return ApiResponse.success("Webhook processed (Already paid)", true);
+                }
+
+                fulfillSuccessfulPayment(order, razorpayPaymentId, signature, paymentMethod);
+                return ApiResponse.success("Webhook payment.captured processed successfully", true);
+            }
+
+            return ApiResponse.success("Webhook event ignored: " + event, true);
+        } catch (Exception e) {
+            log.error("Error processing Razorpay webhook payload", e);
+            throw new BadRequestException("Failed to parse webhook JSON payload");
+        }
+    }
+
+    private void fulfillSuccessfulPayment(Order order, String paymentId, String signature, String paymentMethod) {
         Payment payment = order.getPayment();
         if (payment == null) {
             payment = Payment.builder().order(order).amount(order.getTotalAmount()).currency("INR").build();
         }
 
-        payment.setRazorpayPaymentId(request.getRazorpayPaymentId());
-        payment.setRazorpaySignature(request.getRazorpaySignature());
+        payment.setRazorpayPaymentId(paymentId);
+        payment.setRazorpaySignature(signature);
         payment.setStatus(PaymentStatus.PAID);
-        payment.setPaymentMethod("Razorpay Online");
+        payment.setPaymentMethod(paymentMethod);
         paymentRepository.save(payment);
 
-        // Update Order status
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setOrderStatus(OrderStatus.CONFIRMED);
         orderRepository.save(order);
 
-        // Deduct inventory stock for ordered items
+        // 1. Deduct Inventory Stock
         for (OrderItem item : order.getItems()) {
             ProductVariant variant = item.getVariant();
             if (variant != null && variant.getInventory() != null) {
@@ -126,7 +188,13 @@ public class PaymentService {
             }
         }
 
-        return ApiResponse.success("Payment verified successfully", true);
+        // 2. Account for Coupon Usage if applied
+        if (order.getAppliedCouponCode() != null && !order.getAppliedCouponCode().isBlank()) {
+            Coupon coupon = couponRepository.findByCodeIgnoreCase(order.getAppliedCouponCode()).orElse(null);
+            if (coupon != null) {
+                couponService.recordCouponUsage(order.getUser(), coupon, order);
+            }
+        }
     }
 
     private boolean verifyHmacSha256(String data, String expectedSignature, String secret) {
@@ -138,7 +206,7 @@ public class PaymentService {
             String generatedSignature = HexFormat.of().formatHex(hash);
             return generatedSignature.equalsIgnoreCase(expectedSignature);
         } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            log.error("HMAC SHA256 error during payment verification", e);
+            log.error("HMAC SHA256 error during signature verification", e);
             return false;
         }
     }
