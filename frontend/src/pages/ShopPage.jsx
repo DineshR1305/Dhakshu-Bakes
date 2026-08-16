@@ -7,21 +7,31 @@ import api from '../services/api';
 
 export default function ShopPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  
-  const initialCategory = searchParams.get('category') || '';
-  const initialQuery = searchParams.get('query') || '';
 
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Filters state
-  const [selectedCategory, setSelectedCategory] = useState(initialCategory);
-  const [query, setQuery] = useState(initialQuery);
+  const [selectedCategory, setSelectedCategory] = useState(
+    searchParams.get('category') || ''
+  );
+  const [query, setQuery] = useState(
+    searchParams.get('query') || ''
+  );
   const [isEggless, setIsEggless] = useState(false);
   const [isBestseller, setIsBestseller] = useState(false);
   const [sort, setSort] = useState('featured');
   const [maxPrice, setMaxPrice] = useState(2000);
+
+  // Sync filters whenever the URL query parameters change
+  useEffect(() => {
+    const categoryFromUrl = searchParams.get('category') || '';
+    const queryFromUrl = searchParams.get('query') || '';
+
+    setSelectedCategory(categoryFromUrl);
+    setQuery(queryFromUrl);
+  }, [searchParams]);
 
   useEffect(() => {
     async function fetchCategories() {
@@ -90,7 +100,7 @@ export default function ShopPage() {
         description={`Explore our fresh collection of ${selectedCategory || 'gourmet cakes, cupcakes, pastries, brownies, and cookies'} baked daily at Dhakshu Bakes.`}
         jsonLd={breadcrumbSchema}
       />
-      
+
       {/* Header */}
       <div className="mb-6 sm:mb-8">
         <h1 className="font-serif text-2xl sm:text-4xl font-bold text-bakery-dark">
@@ -116,7 +126,7 @@ export default function ShopPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
-        
+
         {/* Sidebar Filters */}
         <div id="shop-filter-panel" className={`bg-white p-6 rounded-2xl border border-cream-200 shadow-xs h-fit space-y-6 ${mobileFilterOpen ? 'block' : 'hidden lg:block'}`}>
           <div className="flex items-center justify-between border-b border-cream-200 pb-3">
@@ -152,20 +162,24 @@ export default function ShopPage() {
             <label className="text-xs font-bold text-bakery-dark uppercase tracking-wider block mb-2">Category</label>
             <div className="space-y-1.5 max-h-48 overflow-y-auto">
               <button
-                onClick={() => setSelectedCategory('')}
-                className={`w-full text-left px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  selectedCategory === '' ? 'bg-bakery-caramel text-white font-bold' : 'text-gray-600 hover:bg-cream-100'
-                }`}
+                onClick={() => {
+                  setSelectedCategory('');
+                  setSearchParams({});
+                }}
+                className={`w-full text-left px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${selectedCategory === '' ? 'bg-bakery-caramel text-white font-bold' : 'text-gray-600 hover:bg-cream-100'
+                  }`}
               >
                 All Products
               </button>
               {categories.map((c) => (
                 <button
                   key={c.id}
-                  onClick={() => setSelectedCategory(c.slug)}
-                  className={`w-full text-left px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    selectedCategory === c.slug ? 'bg-bakery-caramel text-white font-bold' : 'text-gray-600 hover:bg-cream-100'
-                  }`}
+                  onClick={() => {
+                    setSelectedCategory(c.slug);
+                    setSearchParams({ category: c.slug });
+                  }}
+                  className={`w-full text-left px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${selectedCategory === c.slug ? 'bg-bakery-caramel text-white font-bold' : 'text-gray-600 hover:bg-cream-100'
+                    }`}
                 >
                   {c.name}
                 </button>
@@ -216,7 +230,7 @@ export default function ShopPage() {
 
         {/* Main Grid & Toolbar */}
         <div className="lg:col-span-3 space-y-6">
-          
+
           {/* Sorting Control */}
           <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-cream-200">
             <span className="text-xs font-semibold text-gray-500">

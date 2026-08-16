@@ -112,6 +112,9 @@ export default function HomePage() {
                 src="https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800"
                 alt="Signature Belgian Truffle Cake"
                 className="w-full h-full object-cover"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
               />
             </div>
             
@@ -122,7 +125,7 @@ export default function HomePage() {
               </div>
               <div>
                 <p className="text-xs font-bold text-bakery-dark">Handcrafted Quality</p>
-                <p className="text-[11px] text-gray-500">4.9 ★ Top Rated Bakes (Demo Data)</p>
+                <p className="text-[11px] text-gray-500">4.9 ★ Top Rated Bakes</p>
               </div>
             </div>
           </div>
@@ -138,7 +141,8 @@ export default function HomePage() {
             <h2 className="font-serif text-2xl sm:text-3xl font-bold text-bakery-dark">Handcrafted Delicacies</h2>
           </div>
           <Link to="/shop" className="text-xs font-bold text-bakery hover:text-bakery-dark flex items-center gap-1">
-            View All Categories <ChevronRight className="w-4 h-4" />
+            <span>Explore All</span>
+            <ChevronRight className="w-4 h-4" />
           </Link>
         </div>
 
@@ -147,10 +151,16 @@ export default function HomePage() {
             <Link
               key={cat.id}
               to={`/shop?category=${cat.slug}`}
-              className="group bg-white rounded-2xl p-4 border border-cream-200 shadow-xs hover:shadow-md transition-all text-center flex flex-col items-center"
+              className="group bg-white rounded-2xl p-4 border border-cream-200 shadow-xs hover:shadow-md transition-all text-center flex flex-col items-center space-y-3"
             >
-              <div className="w-20 h-20 rounded-full overflow-hidden mb-3 bg-cream-100 border-2 border-cream-200 group-hover:border-bakery-caramel transition-colors">
-                <img src={cat.imageUrl} alt={cat.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden bg-cream-100 border border-cream-300 shadow-inner">
+                <img
+                  src={cat.imageUrl}
+                  alt={cat.name}
+                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                  loading="lazy"
+                  decoding="async"
+                />
               </div>
               <h3 className="font-serif text-sm font-bold text-bakery-dark group-hover:text-bakery transition-colors">
                 {cat.name}
