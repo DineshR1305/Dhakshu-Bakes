@@ -21,6 +21,7 @@ The backend uses Spring Boot environment variable bindings (`application-prod.pr
 | `RAZORPAY_KEY_ID` | Razorpay API Key ID | `rzp_live_xxxxxxxx` |
 | `RAZORPAY_KEY_SECRET` | Razorpay API Secret | `${RAZORPAY_SECRET}` |
 | `RAZORPAY_WEBHOOK_SECRET` | Razorpay HMAC Webhook Signature Secret | `${WEBHOOK_SECRET}` |
+| `SPRING_MAIL_ENABLED` | Enable outbound production emails | `true` or `false` (default: `false`) |
 | `SPRING_MAIL_HOST` | Production SMTP Host | `smtp.sendgrid.net` or `smtp.gmail.com` |
 | `SPRING_MAIL_PORT` | Production SMTP Port | `587` |
 | `SPRING_MAIL_USERNAME` | SMTP Username | `${SMTP_USER}` |
