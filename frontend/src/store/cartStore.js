@@ -4,6 +4,11 @@ import api from '../services/api';
 export const useCartStore = create((set, get) => ({
   cart: { items: [], subtotal: 0, itemCount: 0 },
   loading: false,
+  isDrawerOpen: false,
+
+  openDrawer: () => set({ isDrawerOpen: true }),
+  closeDrawer: () => set({ isDrawerOpen: false }),
+  toggleDrawer: () => set((state) => ({ isDrawerOpen: !state.isDrawerOpen })),
 
   fetchCart: async () => {
     set({ loading: true });

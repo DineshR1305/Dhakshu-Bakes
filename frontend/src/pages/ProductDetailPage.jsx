@@ -1,11 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Heart, ShoppingBag, Leaf, ShieldCheck, Truck, Clock, Sparkles, Check } from 'lucide-react';
+import { Star, Heart, ShoppingBag, Leaf, ShieldCheck, Truck, ChevronLeft, ChevronRight, ZoomIn, Plus, Minus } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import SEOHead from '../components/SEOHead';
+import { PageLoader } from '../components/Loaders';
+import NotFoundPage from './NotFoundPage';
+import ImageLightboxModal from '../components/ImageLightboxModal';
+import RecentlyViewed from '../components/RecentlyViewed';
+import RelatedProducts from '../components/RelatedProducts';
+import { addRecentlyViewed } from '../utils/recentlyViewed';
 import api from '../services/api';
 
 export default function ProductDetailPage() {
@@ -14,40 +20,65 @@ export default function ProductDetailPage() {
 
   const [product, setProduct] = useState(null);
   const [selectedVariant, setSelectedVariant] = useState(null);
-  const [selectedImage, setSelectedImage] = useState('');
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState('description');
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
 
   // Review Form
   const [newRating, setNewRating] = useState(5);
   const [newReviewText, setNewReviewText] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
-  const { addToCart } = useCartStore();
+  const { cart, addToCart, updateQuantity, removeItem, openDrawer } = useCartStore();
   const { wishlist, toggleWishlist } = useWishlistStore();
   const { isAuthenticated } = useAuthStore();
+  const { showToast } = useToast();
 
   useEffect(() => {
     async function loadProduct() {
+      if (!slug) {
+        setNotFound(true);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
+      setNotFound(false);
       try {
         const res = await api.get(`/products/${slug}`);
-        if (res.success && res.data) {
-          setProduct(res.data);
-          if (res.data.variants && res.data.variants.length > 0) {
-            setSelectedVariant(res.data.variants[0]);
-          }
-          if (res.data.images && res.data.images.length > 0) {
-            setSelectedImage(res.data.images[0].imageUrl);
+        if (res && res.success && res.data) {
+          const prod = res.data;
+          setProduct(prod);
+
+          if (prod.variants && prod.variants.length > 0) {
+            setSelectedVariant(prod.variants[0]);
+          } else {
+            setSelectedVariant(null);
           }
 
-          // Fetch reviews
-          const revRes = await api.get(`/reviews/product/${res.data.id}`);
-          if (revRes.success) setReviews(revRes.data);
+          setActiveImageIndex(0);
+
+          // Add to recently viewed localStorage
+          addRecentlyViewed(prod);
+
+          // Fetch reviews safely
+          try {
+            const revRes = await api.get(`/reviews/product/${prod.id}`);
+            if (revRes && revRes.success && Array.isArray(revRes.data)) {
+              setReviews(revRes.data);
+            }
+          } catch (e) {
+            console.error('Failed to fetch product reviews:', e);
+          }
+        } else {
+          setNotFound(true);
         }
       } catch (err) {
-        console.error(err);
+        console.error('Error loading product:', err);
+        setNotFound(true);
       } finally {
         setLoading(false);
       }
@@ -55,33 +86,56 @@ export default function ProductDetailPage() {
     loadProduct();
   }, [slug]);
 
-  if (loading || !product) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-24 text-center">
-        <p className="text-sm font-semibold text-gray-400">Loading product details...</p>
-      </div>
-    );
+  if (loading) {
+    return <PageLoader text="Loading product details..." />;
   }
 
-  const isWishlisted = wishlist.products && wishlist.products.some(p => p.id === product.id);
+  if (notFound || !product) {
+    return <NotFoundPage />;
+  }
+
+  const images = product.images && product.images.length > 0 ? product.images : [
+    { id: 1, imageUrl: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800', altText: product.name }
+  ];
+
+  const currentImage = images[activeImageIndex]?.imageUrl || images[0].imageUrl;
+
+  const isWishlisted = Boolean(wishlist?.products && wishlist.products.some(p => p.id === product.id));
+
+  // Derive cart item for selected variant
+  const cartItem = cart?.items?.find(
+    item => item.productId === product.id && (selectedVariant ? item.variantId === selectedVariant.id : true)
+  );
+
+  const quantityInCart = cartItem ? cartItem.quantity : 0;
+
+  const isMaxStock = Boolean(
+    selectedVariant?.outOfStock ||
+    (selectedVariant?.stock != null && selectedVariant.stock > 0 && quantityInCart >= selectedVariant.stock)
+  );
 
   const handleAddToCart = async () => {
-    if (selectedVariant) {
+    if (selectedVariant && product) {
+      if (isMaxStock) {
+        showToast(`Maximum available stock reached for ${product.name}`, 'warning');
+        return;
+      }
       const res = await addToCart(product.id, selectedVariant.id, quantity);
-      if (res.success) {
-        // Option to notify or navigate
+      if (res && res.success) {
+        showToast(`Added ${product.name} to cart!`, 'success');
+        openDrawer();
       }
     }
   };
 
   const handleBuyNow = async () => {
-    if (selectedVariant) {
-      await addToCart(product.id, selectedVariant.id, quantity);
-      navigate('/cart');
+    if (selectedVariant && product) {
+      const res = await addToCart(product.id, selectedVariant.id, quantity);
+      if (res && res.success) {
+        navigate('/cart');
+      }
     }
   };
-
-  const [submittingReview, setSubmittingReview] = useState(false);
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
@@ -99,7 +153,7 @@ export default function ProductDetailPage() {
         rating: newRating,
         reviewText: newReviewText.trim(),
       });
-      if (res.success && res.data) {
+      if (res && res.success && res.data) {
         setReviews([res.data, ...reviews]);
         setNewReviewText('');
         showToast('Thank you! Your review has been submitted for moderation.', 'success');
@@ -111,12 +165,23 @@ export default function ProductDetailPage() {
     }
   };
 
+  // Build list of valid information tabs dynamically
+  const availableTabs = [
+    { key: 'description', label: 'Description', show: Boolean(product.description) },
+    { key: 'ingredients', label: 'Ingredients', show: Boolean(product.ingredients) },
+    { key: 'allergens', label: 'Allergens', show: Boolean(product.allergens) },
+    { key: 'nutrition', label: 'Nutritional Info', show: Boolean(product.nutritionFacts) },
+    { key: 'storage', label: 'Storage & Shelf Life', show: Boolean(product.storageInstructions) },
+    { key: 'delivery', label: 'Delivery Info', show: Boolean(product.deliveryInfo) },
+    { key: 'reviews', label: `Reviews (${reviews.length})`, show: true },
+  ].filter(t => t.show);
+
   const productSchema = product ? {
     '@context': 'https://schema.org',
     '@type': 'Product',
     'name': product.name,
     'description': product.description,
-    'image': selectedImage || 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800',
+    'image': currentImage,
     'offers': {
       '@type': 'Offer',
       'price': selectedVariant?.discountPrice || selectedVariant?.price || 0,
@@ -136,7 +201,7 @@ export default function ProductDetailPage() {
       <SEOHead
         title={product.name}
         description={product.description}
-        image={selectedImage}
+        image={currentImage}
         type="product"
         jsonLd={productSchema}
       />
@@ -144,33 +209,76 @@ export default function ProductDetailPage() {
       {/* Top Product Hero Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         
-        {/* Left: Image Gallery */}
+        {/* Left: Image Gallery with Lightbox & Nav Controls */}
         <div className="space-y-4">
-          <div className="aspect-square bg-white rounded-3xl overflow-hidden border border-cream-200 shadow-sm relative">
+          <div className="aspect-square bg-white rounded-3xl overflow-hidden border border-cream-200 shadow-sm relative group">
             <img
-              src={selectedImage || 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800'}
-              alt={product.name}
-              className="w-full h-full object-cover"
+              src={currentImage}
+              alt={images[activeImageIndex]?.altText || product.name}
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800';
+              }}
             />
-            {product.isEggless && (
-              <span className="absolute top-4 left-4 bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
-                <Leaf className="w-3.5 h-3.5 text-emerald-600" /> Pure Eggless
-              </span>
+
+            {/* Badges Overlay */}
+            <div className="absolute top-4 left-4 flex flex-col gap-2">
+              {product.isEggless && (
+                <span className="bg-emerald-50 text-emerald-700 text-xs font-bold px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1 shadow-xs">
+                  <Leaf className="w-3.5 h-3.5 text-emerald-600" /> Pure Eggless
+                </span>
+              )}
+              {product.isBestseller && (
+                <span className="bg-bakery-gold text-bakery-dark text-xs font-extrabold px-3 py-1 rounded-full shadow-xs">
+                  Bestseller
+                </span>
+              )}
+            </div>
+
+            {/* Lightbox Zoom Trigger */}
+            <button
+              onClick={() => setLightboxOpen(true)}
+              aria-label="Inspect product image fullscreen"
+              className="absolute top-4 right-4 p-2.5 rounded-full bg-white/90 backdrop-blur-xs text-bakery-dark hover:bg-white transition-all shadow-md focus:ring-2 focus:ring-bakery-caramel"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+
+            {/* Previous / Next Arrow Controls */}
+            {images.length > 1 && (
+              <>
+                <button
+                  onClick={() => setActiveImageIndex((activeImageIndex - 1 + images.length) % images.length)}
+                  aria-label="Previous product image"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 hover:bg-white text-bakery-dark shadow-md transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setActiveImageIndex((activeImageIndex + 1) % images.length)}
+                  aria-label="Next product image"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/80 hover:bg-white text-bakery-dark shadow-md transition-all opacity-0 group-hover:opacity-100"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </>
             )}
           </div>
 
-          {/* Image Thumbnails */}
-          {product.images && product.images.length > 1 && (
-            <div className="flex gap-3">
-              {product.images.map((img) => (
+          {/* Image Thumbnails Strip */}
+          {images.length > 1 && (
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {images.map((img, idx) => (
                 <button
-                  key={img.id}
-                  onClick={() => setSelectedImage(img.imageUrl)}
-                  className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all ${
-                    selectedImage === img.imageUrl ? 'border-bakery-caramel scale-105' : 'border-cream-200'
+                  key={img.id || idx}
+                  onClick={() => setActiveImageIndex(idx)}
+                  aria-label={`Select product image ${idx + 1}`}
+                  className={`w-20 h-20 rounded-xl overflow-hidden border-2 transition-all shrink-0 ${
+                    activeImageIndex === idx ? 'border-bakery-caramel scale-105 shadow-xs' : 'border-cream-200 opacity-80 hover:opacity-100'
                   }`}
                 >
-                  <img src={img.imageUrl} alt={img.altText} className="w-full h-full object-cover" />
+                  <img src={img.imageUrl} alt={img.altText || product.name} className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
@@ -192,8 +300,8 @@ export default function ProductDetailPage() {
               <div className="flex text-amber-400">
                 {'★'.repeat(Math.round(product.ratingAvg || 5))}
               </div>
-              <span className="text-xs font-bold text-bakery-dark">{product.ratingAvg}</span>
-              <span className="text-xs text-gray-500 font-medium">({product.reviewCount} customer reviews)</span>
+              <span className="text-xs font-bold text-bakery-dark">{product.ratingAvg || 5.0}</span>
+              <span className="text-xs text-gray-500 font-medium">({product.reviewCount || 0} customer reviews)</span>
             </div>
           </div>
 
@@ -208,7 +316,7 @@ export default function ProductDetailPage() {
               </span>
             )}
             {selectedVariant?.discountPrice && (
-              <span className="text-xs font-extrabold bg-bakery-rose text-white px-2 py-0.5 rounded-full">
+              <span className="text-xs font-extrabold bg-bakery-rose text-white px-2.5 py-1 rounded-full shadow-2xs">
                 SAVE ₹{selectedVariant.price - selectedVariant.discountPrice}
               </span>
             )}
@@ -244,12 +352,13 @@ export default function ProductDetailPage() {
 
           {/* Quantity & Action Buttons */}
           <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between gap-3 sm:hidden">
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              {/* Quantity Input Selector */}
               <div className="flex items-center bg-white border border-cream-300 rounded-full">
                 <button
                   onClick={() => setQuantity(Math.max(1, quantity - 1))}
                   aria-label="Decrease quantity"
-                  className="px-3.5 py-2 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-l-full min-h-[44px]"
+                  className="px-3.5 py-2.5 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-l-full min-h-[44px]"
                 >
                   -
                 </button>
@@ -257,62 +366,40 @@ export default function ProductDetailPage() {
                 <button
                   onClick={() => setQuantity(quantity + 1)}
                   aria-label="Increase quantity"
-                  className="px-3.5 py-2 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-r-full min-h-[44px]"
+                  className="px-3.5 py-2.5 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-r-full min-h-[44px]"
                 >
                   +
                 </button>
               </div>
 
-              <button
-                onClick={() => isAuthenticated && toggleWishlist(product.id)}
-                aria-label={isWishlisted ? `Remove ${product.name} from Wishlist` : `Add ${product.name} to Wishlist`}
-                className={`p-3 rounded-full border border-cream-300 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
-                  isWishlisted ? 'bg-rose-50 text-bakery-rose' : 'bg-white text-gray-400 hover:text-bakery-rose'
-                }`}
-              >
-                <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-bakery-rose' : ''}`} />
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              <div className="hidden sm:flex items-center bg-white border border-cream-300 rounded-full">
-                <button
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  aria-label="Decrease quantity"
-                  className="px-3.5 py-2 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-l-full"
-                >
-                  -
-                </button>
-                <span className="px-4 text-xs font-extrabold text-bakery-dark">{quantity}</span>
-                <button
-                  onClick={() => setQuantity(quantity + 1)}
-                  aria-label="Increase quantity"
-                  className="px-3.5 py-2 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-r-full"
-                >
-                  +
-                </button>
-              </div>
-
+              {/* Add To Cart */}
               <button
                 onClick={handleAddToCart}
-                disabled={selectedVariant?.outOfStock}
-                className="w-full sm:flex-1 py-3 px-4 bg-bakery-caramel hover:bg-bakery text-white font-bold text-xs sm:text-sm rounded-full shadow-md transition-all flex items-center justify-center gap-2 min-h-[44px]"
+                disabled={selectedVariant?.outOfStock || isMaxStock}
+                className={`w-full sm:flex-1 py-3 px-4 rounded-full font-bold text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 min-h-[44px] ${
+                  selectedVariant?.outOfStock || isMaxStock
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    : 'bg-bakery-caramel hover:bg-bakery text-white'
+                }`}
               >
                 <ShoppingBag className="w-4 h-4" />
-                <span>{selectedVariant?.outOfStock ? 'Out of Stock' : 'Add To Cart'}</span>
+                <span>{selectedVariant?.outOfStock ? 'Out of Stock' : isMaxStock ? 'Max Stock Reached' : 'Add To Cart'}</span>
               </button>
 
+              {/* Buy Now */}
               <button
                 onClick={handleBuyNow}
-                disabled={selectedVariant?.outOfStock}
-                className="w-full sm:w-auto py-3 px-6 bg-bakery-dark hover:bg-black text-white font-bold text-xs sm:text-sm rounded-full shadow-md transition-all min-h-[44px]"
+                disabled={selectedVariant?.outOfStock || isMaxStock}
+                className="w-full sm:w-auto py-3 px-6 bg-bakery-dark hover:bg-black text-white font-bold text-xs sm:text-sm rounded-full shadow-md transition-all min-h-[44px] disabled:opacity-50"
               >
                 Buy Now
               </button>
 
+              {/* Wishlist Button */}
               <button
                 onClick={() => isAuthenticated && toggleWishlist(product.id)}
-                className={`hidden sm:flex p-3 rounded-full border border-cream-300 transition-colors min-h-[44px] min-w-[44px] items-center justify-center ${
+                aria-label={isWishlisted ? `Remove ${product.name} from Wishlist` : `Add ${product.name} to Wishlist`}
+                className={`p-3 rounded-full border border-cream-300 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
                   isWishlisted ? 'bg-rose-50 text-bakery-rose' : 'bg-white text-gray-400 hover:text-bakery-rose'
                 }`}
               >
@@ -341,17 +428,17 @@ export default function ProductDetailPage() {
       <div className="bg-white rounded-3xl border border-cream-200 p-6 sm:p-8 shadow-xs">
         
         <div className="flex border-b border-cream-200 gap-6 text-sm font-serif font-bold mb-6 overflow-x-auto">
-          {['description', 'ingredients', 'allergens', 'storage', 'reviews'].map((tab) => (
+          {availableTabs.map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`pb-3 capitalize transition-colors border-b-2 ${
-                activeTab === tab
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`pb-3 capitalize transition-colors border-b-2 whitespace-nowrap ${
+                activeTab === tab.key
                   ? 'border-bakery-caramel text-bakery-dark'
                   : 'border-transparent text-gray-400 hover:text-bakery-dark'
               }`}
             >
-              {tab === 'reviews' ? `Customer Reviews (${reviews.length})` : tab}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -363,20 +450,27 @@ export default function ProductDetailPage() {
           )}
 
           {activeTab === 'ingredients' && (
-            <p>{product.ingredients || 'Handcrafted using fresh milk, butter, cocoa, flour, and organic vanilla extract.'}</p>
+            <p>{product.ingredients}</p>
           )}
 
           {activeTab === 'allergens' && (
-            <p>{product.allergens || 'Contains Dairy, Gluten. Prepared in a facility that handles tree nuts.'}</p>
+            <p>{product.allergens}</p>
+          )}
+
+          {activeTab === 'nutrition' && (
+            <p>{product.nutritionFacts}</p>
           )}
 
           {activeTab === 'storage' && (
-            <p>{product.storageInstructions || 'Refrigerate at 2°C - 5°C. For best taste, bring to room temperature 15 minutes before serving.'}</p>
+            <p>{product.storageInstructions}</p>
+          )}
+
+          {activeTab === 'delivery' && (
+            <p>{product.deliveryInfo}</p>
           )}
 
           {activeTab === 'reviews' && (
             <div className="space-y-8">
-              
               {/* Review Form */}
               <div className="bg-cream-100/60 p-5 rounded-2xl border border-cream-200 max-w-xl">
                 <h4 className="font-serif font-bold text-sm text-bakery-dark mb-3">Write a Customer Review</h4>
@@ -407,9 +501,10 @@ export default function ProductDetailPage() {
                   </div>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-bakery-dark text-white font-bold text-xs rounded-full hover:bg-bakery"
+                    disabled={submittingReview}
+                    className="px-5 py-2 bg-bakery-dark text-white font-bold text-xs rounded-full hover:bg-bakery disabled:opacity-50"
                   >
-                    Submit Review
+                    {submittingReview ? 'Submitting...' : 'Submit Review'}
                   </button>
                 </form>
               </div>
@@ -420,20 +515,39 @@ export default function ProductDetailPage() {
                   <div key={r.id} className="p-4 bg-cream-50 rounded-xl border border-cream-200">
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold text-bakery-dark text-xs">{r.userName}</span>
-                      <div className="flex text-amber-400 text-xs">{'★'.repeat(r.rating)}</div>
+                      <div className="flex text-amber-400 text-xs">{'★'.repeat(r.rating || 5)}</div>
                     </div>
                     <p className="text-xs text-gray-600">{r.reviewText}</p>
                     <span className="text-[10px] text-gray-500 font-semibold block mt-1">Verified Purchase</span>
                   </div>
                 ))}
               </div>
-
             </div>
           )}
         </div>
 
       </div>
 
+      {/* Related Products Section */}
+      <RelatedProducts
+        currentProduct={product}
+        categoryId={product.categoryId}
+        categoryName={product.categoryName}
+        className="pt-6 border-t border-cream-200"
+      />
+
+      {/* Recently Viewed Products Section */}
+      <RecentlyViewed currentProductId={product.id} className="pt-6 border-t border-cream-200" />
+
+      {/* Image Lightbox Modal */}
+      <ImageLightboxModal
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        images={images}
+        currentIndex={activeImageIndex}
+        onSelectIndex={setActiveImageIndex}
+        altText={product.name}
+      />
     </div>
   );
 }

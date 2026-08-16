@@ -1,7 +1,8 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { Cake, RefreshCw, Home, AlertCircle } from 'lucide-react';
 
-export class ErrorBoundary extends React.Component {
+export class ErrorBoundaryClass extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -14,6 +15,14 @@ export class ErrorBoundary extends React.Component {
   componentDidCatch(error, errorInfo) {
     if (import.meta.env.DEV) {
       console.error('React ErrorBoundary Caught Error:', error, errorInfo);
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    if (this.props.location && prevProps.location && this.props.location.pathname !== prevProps.location.pathname) {
+      if (this.state.hasError) {
+        this.setState({ hasError: false, error: null });
+      }
     }
   }
 
@@ -71,4 +80,16 @@ export class ErrorBoundary extends React.Component {
   }
 }
 
-export default ErrorBoundary;
+export default function ErrorBoundary({ children }) {
+  let location = null;
+  try {
+    location = useLocation();
+  } catch (e) {
+    location = null;
+  }
+  return (
+    <ErrorBoundaryClass location={location} key={location ? location.pathname : 'default'}>
+      {children}
+    </ErrorBoundaryClass>
+  );
+}

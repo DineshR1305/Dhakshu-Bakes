@@ -1,31 +1,69 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, Star, ShoppingBag, Leaf } from 'lucide-react';
+import { Heart, Star, ShoppingBag, Leaf, Plus, Minus } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
+
 export default function ProductCard({ product }) {
-  const { addToCart } = useCartStore();
+  const { cart, addToCart, updateQuantity, removeItem } = useCartStore();
   const { wishlist, toggleWishlist } = useWishlistStore();
   const { isAuthenticated } = useAuthStore();
   const { showToast } = useToast();
 
-  const isWishlisted = wishlist.products && wishlist.products.some(p => p.id === product.id);
+  const isWishlisted = Boolean(wishlist?.products && wishlist.products.some(p => p.id === product.id));
 
   const primaryVariant = product.variants && product.variants.length > 0 ? product.variants[0] : null;
   const primaryImage = product.images && product.images.length > 0 ? product.images[0].imageUrl : 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600';
 
+  const cartItem = cart?.items?.find(
+    item => item.productId === product.id && (primaryVariant ? item.variantId === primaryVariant.id : true)
+  );
+
+  const quantityInCart = cartItem ? cartItem.quantity : 0;
+
+  const isMaxStock = Boolean(
+    primaryVariant?.outOfStock ||
+    (primaryVariant?.stock != null && primaryVariant.stock > 0 && quantityInCart >= primaryVariant.stock)
+  );
+
   const handleQuickAdd = async (e) => {
     e.preventDefault();
-    if (primaryVariant) {
-      const res = await addToCart(product.id, primaryVariant.id, 1);
+    e.stopPropagation();
+    if (!primaryVariant || primaryVariant.outOfStock) return;
+    const res = await addToCart(product.id, primaryVariant.id, 1);
+    if (res && res.success) {
       showToast(`Added ${product.name} to cart!`, 'success');
+    }
+  };
+
+  const handleIncrease = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!cartItem || !primaryVariant) return;
+    if (isMaxStock) {
+      showToast(`Maximum available stock reached for ${product.name}`, 'warning');
+      return;
+    }
+    await updateQuantity(cartItem.id, quantityInCart + 1);
+  };
+
+  const handleDecrease = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!cartItem) return;
+    if (quantityInCart <= 1) {
+      await removeItem(cartItem.id);
+      showToast(`Removed ${product.name} from cart`, 'info');
+    } else {
+      await updateQuantity(cartItem.id, quantityInCart - 1);
     }
   };
 
   const handleWishlist = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     if (isAuthenticated) {
       toggleWishlist(product.id);
       showToast(isWishlisted ? `Removed ${product.name} from wishlist` : `Added ${product.name} to wishlist!`, 'info');
@@ -102,7 +140,7 @@ export default function ProductCard({ product }) {
             <span className="text-[11px] text-gray-500 font-medium">({product.reviewCount || 0})</span>
           </div>
 
-          {/* Pricing & Add Button */}
+          {/* Pricing & Add / Quantity Controls */}
           <div className="flex items-center justify-between pt-2 border-t border-cream-100">
             <div>
               {primaryVariant ? (
@@ -121,18 +159,51 @@ export default function ProductCard({ product }) {
               )}
             </div>
 
-            <button
-              onClick={handleQuickAdd}
-              disabled={primaryVariant?.outOfStock}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all shadow-sm ${
-                primaryVariant?.outOfStock
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-cream-200 hover:bg-bakery-caramel text-bakery-dark hover:text-white'
-              }`}
-            >
-              <ShoppingBag className="w-3.5 h-3.5" />
-              <span>{primaryVariant?.outOfStock ? 'Out of Stock' : 'Add'}</span>
-            </button>
+            {primaryVariant?.outOfStock ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-gray-200 text-gray-400 cursor-not-allowed">
+                Out of Stock
+              </span>
+            ) : quantityInCart > 0 ? (
+              <div
+                className="inline-flex items-center bg-cream-100 border border-cream-300 rounded-full p-0.5 shadow-xs"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              >
+                <button
+                  onClick={handleDecrease}
+                  aria-label={`Decrease quantity of ${product.name}`}
+                  className="w-7 h-7 rounded-full bg-white hover:bg-cream-200 text-bakery-dark flex items-center justify-center transition-colors shadow-xs"
+                >
+                  <Minus className="w-3.5 h-3.5 text-bakery-dark" />
+                </button>
+                <span
+                  className="w-7 text-center text-xs font-extrabold text-bakery-dark select-none"
+                  aria-label={`Quantity of ${product.name} in cart: ${quantityInCart}`}
+                >
+                  {quantityInCart}
+                </span>
+                <button
+                  onClick={handleIncrease}
+                  disabled={isMaxStock}
+                  aria-label={`Increase quantity of ${product.name}`}
+                  className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors shadow-xs ${
+                    isMaxStock
+                      ? 'bg-gray-100 text-gray-300 cursor-not-allowed'
+                      : 'bg-bakery-caramel hover:bg-bakery text-white'
+                  }`}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={handleQuickAdd}
+                aria-label={`Add ${product.name} to cart`}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold bg-cream-200 hover:bg-bakery-caramel text-bakery-dark hover:text-white transition-all shadow-sm"
+              >
+                <ShoppingBag className="w-3.5 h-3.5" />
+                <span>Add</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -140,4 +211,3 @@ export default function ProductCard({ product }) {
     </div>
   );
 }
-

@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import ConfirmModal from '../components/ConfirmModal';
 import SEOHead from '../components/SEOHead';
+import FreeDeliveryProgress from '../components/FreeDeliveryProgress';
 import { ButtonLoader } from '../components/Loaders';
 import api from '../services/api';
 
@@ -61,13 +62,12 @@ export default function CheckoutPage() {
     setValidatingCoupon(true);
     try {
       const res = await api.post('/coupons/validate', {
-        code,
+        code: code,
         orderSubtotal: cart.subtotal,
       });
+
       if (res.success && res.data.valid) {
         setCouponDiscount(res.data.calculatedDiscount);
-        setAppliedCoupon(code);
-        localStorage.setItem('dhakshu_applied_coupon', code);
       } else {
         setCouponDiscount(0);
         setAppliedCoupon('');
@@ -84,146 +84,138 @@ export default function CheckoutPage() {
     setAppliedCoupon('');
     setCouponDiscount(0);
     localStorage.removeItem('dhakshu_applied_coupon');
-    showToast('Coupon removed from checkout', 'info');
+    showToast('Coupon removed', 'info');
   };
 
   const deliveryFee = cart.subtotal >= 499 || cart.subtotal === 0 ? 0 : 50;
-  const finalPayableTotal = Math.max(0, cart.subtotal - couponDiscount + deliveryFee);
+  const finalTotal = Math.max(0, cart.subtotal - couponDiscount + deliveryFee);
 
-  const handlePlaceOrderAndPay = async () => {
-    if (submitting) return;
+  const handlePlaceOrder = async (e) => {
+    e.preventDefault();
 
-    if (!addressLine1.trim() && !selectedAddressId) {
-      showToast('Please enter your delivery street address', 'warning');
+    if (!fullName || !phone || !addressLine1 || !city || !postalCode) {
+      showToast('Please fill in all required shipping address fields', 'warning');
       return;
     }
 
     setSubmitting(true);
-    try {
-      // 1. Create Address if none selected and form filled
-      let addressId = selectedAddressId;
-      if (!addressId) {
-        const addrRes = await api.post('/account/addresses', {
-          fullName: fullName || user?.fullName || 'Customer',
-          phone: phone || '+91 9876543210',
-          addressLine1: addressLine1 || '101 Residency Road',
-          city: city || 'Bengaluru',
-          state: state || 'Karnataka',
-          postalCode: postalCode || '560001',
-          country: 'India',
-          isDefault: true
-        });
-        if (addrRes.success && addrRes.data) addressId = addrRes.data.id;
-      }
 
-      // 2. Call backend checkout order creation
-      const checkoutRes = await api.post('/orders/checkout', {
-        shippingAddressId: addressId,
-        couponCode: appliedCoupon || null,
+    try {
+      const orderPayload = {
+        fullName,
+        phone,
+        addressLine1,
+        addressLine2,
+        city,
+        state,
+        postalCode,
         deliveryDate,
         deliveryTimeSlot,
         isGift,
-        giftMessage,
-        recipientName
-      });
-
-      if (!checkoutRes.success || !checkoutRes.data) {
-        showToast(checkoutRes.message || 'Checkout failed. Please check item stock.', 'error');
-        setSubmitting(false);
-        return;
-      }
-
-      const order = checkoutRes.data;
-
-      // 3. Initiate Razorpay payment order
-      const rzpRes = await api.post('/payments/create-razorpay-order', { orderId: order.id });
-      if (!rzpRes.success || !rzpRes.data) {
-        showToast('Failed to initiate online payment session', 'error');
-        setSubmitting(false);
-        return;
-      }
-
-      const rzpData = rzpRes.data;
-
-      // 4. Trigger Razorpay Checkout Popup
-      const options = {
-        key: rzpData.keyId,
-        amount: rzpData.amount,
-        currency: rzpData.currency,
-        name: 'Dhakshu Bakes',
-        description: `Order #${order.orderNumber}`,
-        order_id: rzpData.razorpayOrderId.startsWith('order_rzp_') ? undefined : rzpData.razorpayOrderId,
-        handler: async function (response) {
-          try {
-            const verifyRes = await api.post('/payments/verify-razorpay', {
-              orderId: order.id,
-              razorpayOrderId: rzpData.razorpayOrderId,
-              razorpayPaymentId: response.razorpay_payment_id || 'pay_sample_' + Date.now(),
-              razorpaySignature: response.razorpay_signature || 'sig_sample_' + Date.now(),
-            });
-
-            if (verifyRes.success) {
-              clearCart();
-              localStorage.removeItem('dhakshu_applied_coupon');
-              showToast('Payment successful! Your order is being baked.', 'success');
-              navigate(`/orders/${order.orderNumber}`);
-            } else {
-              showToast('Payment signature verification failed.', 'error');
-            }
-          } catch (e) {
-            showToast(e.message || 'Error completing payment verification', 'error');
-          }
-        },
-        prefill: {
-          name: rzpData.customerName,
-          email: rzpData.customerEmail,
-          contact: rzpData.customerPhone,
-        },
-        theme: {
-          color: '#8B4513',
-        },
+        recipientName: isGift ? recipientName : null,
+        giftMessage: isGift ? giftMessage : null,
+        couponCode: appliedCoupon || null,
       };
 
-      if (window.Razorpay) {
-        const rzp = new window.Razorpay(options);
-        rzp.open();
-      } else {
-        // Fallback simulation for test environment
-        const verifyRes = await api.post('/payments/verify-razorpay', {
-          orderId: order.id,
-          razorpayOrderId: rzpData.razorpayOrderId,
-          razorpayPaymentId: 'pay_simulated_' + Date.now(),
-          razorpaySignature: 'sig_simulated_' + Date.now(),
-        });
-        if (verifyRes.success) {
+      const res = await api.post('/orders', orderPayload);
+
+      if (res.success && res.data) {
+        const { order, razorpayOrder } = res.data;
+
+        // Initialize Razorpay Checkout Modal
+        const rzpData = razorpayOrder;
+
+        const options = {
+          key: rzpData.keyId,
+          amount: rzpData.amount,
+          currency: rzpData.currency,
+          name: 'Dhakshu Bakes',
+          description: `Order #${order.orderNumber}`,
+          order_id: rzpData.razorpayOrderId.startsWith('order_rzp_') ? undefined : rzpData.razorpayOrderId,
+          handler: async function (response) {
+            try {
+              const verifyRes = await api.post('/payments/verify-razorpay', {
+                orderId: order.id,
+                razorpayOrderId: rzpData.razorpayOrderId,
+                razorpayPaymentId: response.razorpay_payment_id || 'pay_sample_' + Date.now(),
+                razorpaySignature: response.razorpay_signature || 'sig_sample_' + Date.now(),
+              });
+
+              if (verifyRes.success) {
+                clearCart();
+                localStorage.removeItem('dhakshu_applied_coupon');
+                showToast('Payment successful! Your order is being baked.', 'success');
+                navigate(`/orders/${order.orderNumber}`);
+              } else {
+                showToast('Payment signature verification failed.', 'error');
+              }
+            } catch (e) {
+              showToast(e.message || 'Error completing payment verification', 'error');
+            }
+          },
+          prefill: {
+            name: rzpData.customerName,
+            email: rzpData.customerEmail,
+            contact: rzpData.customerPhone,
+          },
+          theme: {
+            color: '#8C5A3C',
+          },
+        };
+
+        if (window.Razorpay) {
+          const rzp = new window.Razorpay(options);
+          rzp.on('payment.failed', function (resp) {
+            showToast(resp.error.description || 'Payment process failed or cancelled', 'error');
+          });
+          rzp.open();
+        } else {
+          // Fallback simulation if Razorpay JS SDK fails to load
           clearCart();
           localStorage.removeItem('dhakshu_applied_coupon');
-          showToast('Order placed successfully!', 'success');
+          showToast('Order created! (Razorpay SDK sandbox mode)', 'success');
           navigate(`/orders/${order.orderNumber}`);
         }
+      } else {
+        showToast(res.message || 'Failed to place order', 'error');
       }
     } catch (err) {
-      showToast(err.message || 'Error processing order. Please try again.', 'error');
+      showToast(err.message || 'Error placing order', 'error');
     } finally {
       setSubmitting(false);
     }
   };
 
+  if (!cart.items || cart.items.length === 0) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center space-y-4">
+        <h2 className="font-serif text-2xl font-bold text-bakery-dark">No Items to Checkout</h2>
+        <p className="text-xs text-gray-500">Your shopping cart is empty.</p>
+        <button
+          onClick={() => navigate('/shop')}
+          className="px-6 py-2 bg-bakery-dark text-white font-bold text-xs rounded-full"
+        >
+          Return to Shop
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10 space-y-8">
       <SEOHead title="Checkout & Payment" noindex={true} />
-      
+
       <div>
-        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-bakery-dark">CHECKOUT & PAYMENT</h1>
-        <p className="text-xs text-gray-500 mt-1">Provide your delivery address and schedule slot to complete order.</p>
+        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-bakery-dark">CHECKOUT</h1>
+        <p className="text-xs text-gray-500 mt-1">Provide your delivery address and schedule your fresh bake delivery.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Main Steps */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Left Section: Delivery Form & Schedule */}
+        <form id="checkout-form" onSubmit={handlePlaceOrder} className="lg:col-span-2 space-y-6">
           
-          {/* Step 1: Delivery Address Form */}
+          {/* Step 1: Shipping Address */}
           <div className="bg-white p-6 rounded-2xl border border-cream-200 shadow-xs space-y-4">
             <h3 className="font-serif font-bold text-base text-bakery-dark flex items-center gap-2">
               <Truck className="w-5 h-5 text-bakery-caramel" />
@@ -240,34 +232,52 @@ export default function CheckoutPage() {
                   autoComplete="name"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg focus:outline-none focus:border-bakery-caramel"
+                  className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg"
                 />
               </div>
+
               <div>
                 <label htmlFor="checkout_phone" className="block text-xs font-bold text-gray-700 mb-1">Phone Number <span className="text-red-500">*</span></label>
                 <input
                   id="checkout_phone"
-                  type="text"
+                  type="tel"
                   required
                   autoComplete="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg focus:outline-none focus:border-bakery-caramel"
+                  className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg"
                 />
               </div>
-              <div className="sm:col-span-2">
-                <label htmlFor="checkout_addressLine1" className="block text-xs font-bold text-gray-700 mb-1">Flat, House No., Street Address <span className="text-red-500">*</span></label>
-                <input
-                  id="checkout_addressLine1"
-                  type="text"
-                  required
-                  autoComplete="street-address"
-                  placeholder="e.g. 104 Park Avenue, Indiranagar"
-                  value={addressLine1}
-                  onChange={(e) => setAddressLine1(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg focus:outline-none focus:border-bakery-caramel"
-                />
-              </div>
+            </div>
+
+            <div>
+              <label htmlFor="checkout_addressLine1" className="block text-xs font-bold text-gray-700 mb-1">Street Address <span className="text-red-500">*</span></label>
+              <input
+                id="checkout_addressLine1"
+                type="text"
+                required
+                placeholder="House/Flat No., Building Name, Street"
+                autoComplete="address-line1"
+                value={addressLine1}
+                onChange={(e) => setAddressLine1(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="checkout_addressLine2" className="block text-xs font-bold text-gray-700 mb-1">Landmark / Area (Optional)</label>
+              <input
+                id="checkout_addressLine2"
+                type="text"
+                placeholder="Near Metro Station or Park"
+                autoComplete="address-line2"
+                value={addressLine2}
+                onChange={(e) => setAddressLine2(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="checkout_city" className="block text-xs font-bold text-gray-700 mb-1">City <span className="text-red-500">*</span></label>
                 <input
@@ -322,49 +332,44 @@ export default function CheckoutPage() {
                   onChange={(e) => setDeliveryTimeSlot(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg font-medium"
                 >
-                  <option value="10:00 AM - 01:00 PM">Morning (10:00 AM - 01:00 PM)</option>
-                  <option value="02:00 PM - 05:00 PM">Afternoon (02:00 PM - 05:00 PM)</option>
-                  <option value="06:00 PM - 09:00 PM">Evening (06:00 PM - 09:00 PM)</option>
+                  <option value="10:00 AM - 01:00 PM">Morning Slot (10:00 AM - 01:00 PM)</option>
+                  <option value="02:00 PM - 05:00 PM">Afternoon Slot (02:00 PM - 05:00 PM)</option>
+                  <option value="06:00 PM - 09:00 PM">Evening Slot (06:00 PM - 09:00 PM)</option>
                 </select>
               </div>
             </div>
           </div>
 
-          {/* Step 3: Gifting Options */}
+          {/* Step 3: Gift Packaging Options */}
           <div className="bg-white p-6 rounded-2xl border border-cream-200 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-serif font-bold text-base text-bakery-dark flex items-center gap-2">
-                <Gift className="w-5 h-5 text-bakery-rose" />
-                <span>3. Make This A Gift Order?</span>
-              </h3>
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-bakery-dark">
-                <input
-                  type="checkbox"
-                  checked={isGift}
-                  onChange={(e) => setIsGift(e.target.checked)}
-                  className="rounded text-bakery-rose focus:ring-bakery-rose"
-                />
-                <span>Include Gift Message & Ribbon</span>
-              </label>
-            </div>
+            <label className="flex items-center gap-2 cursor-pointer font-serif font-bold text-base text-bakery-dark">
+              <input
+                type="checkbox"
+                checked={isGift}
+                onChange={(e) => setIsGift(e.target.checked)}
+                className="rounded border-cream-300 text-bakery-caramel focus:ring-bakery-caramel"
+              />
+              <Gift className="w-5 h-5 text-bakery-rose" />
+              <span>Send as a Gift Package</span>
+            </label>
 
             {isGift && (
-              <div className="space-y-3 pt-2">
+              <div className="space-y-3 pt-2 border-t border-cream-100 animate-fadeIn">
                 <div>
                   <label className="block text-xs font-bold text-gray-700 mb-1">Recipient Name</label>
                   <input
                     type="text"
-                    placeholder="Recipient's Name"
+                    placeholder="Name of the person receiving the gift"
                     value={recipientName}
                     onChange={(e) => setRecipientName(e.target.value)}
                     className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Personal Note / Message</label>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Custom Gift Message</label>
                   <textarea
                     rows={2}
-                    placeholder="Happy Birthday! Wishing you a sweet day..."
+                    placeholder="Wishing you a wonderful celebration! Warm wishes..."
                     value={giftMessage}
                     onChange={(e) => setGiftMessage(e.target.value)}
                     className="w-full p-2.5 text-xs bg-cream-100 border border-cream-300 rounded-lg"
@@ -374,11 +379,14 @@ export default function CheckoutPage() {
             )}
           </div>
 
-        </div>
+        </form>
 
         {/* Right Sidebar: Authoritative Pricing & Payment Button */}
         <div className="bg-white p-6 rounded-2xl border border-cream-200 shadow-xs h-fit space-y-6">
           <h3 className="font-serif text-lg font-bold text-bakery-dark border-b border-cream-200 pb-3">Authoritative Total</h3>
+
+          {/* Free Delivery Progress Banner */}
+          <FreeDeliveryProgress subtotal={cart.subtotal} />
 
           {/* Active Coupon Status */}
           {appliedCoupon && (
@@ -388,6 +396,7 @@ export default function CheckoutPage() {
                 <span>Coupon ({appliedCoupon}) Applied</span>
               </div>
               <button
+                type="button"
                 onClick={handleRemoveCoupon}
                 className="text-[11px] font-bold text-red-600 hover:text-red-800 flex items-center gap-0.5"
               >
@@ -418,28 +427,26 @@ export default function CheckoutPage() {
 
             <div className="border-t border-cream-200 pt-3 flex justify-between text-lg font-extrabold text-bakery-dark">
               <span>Final Total Amount</span>
-              <span>₹{finalPayableTotal}</span>
+              <span>₹{finalTotal}</span>
             </div>
           </div>
 
           <button
-            onClick={handlePlaceOrderAndPay}
+            type="submit"
+            form="checkout-form"
             disabled={submitting}
-            className="w-full py-3.5 bg-bakery-caramel hover:bg-bakery disabled:bg-gray-400 text-white font-bold text-sm rounded-full shadow-lg transition-all flex items-center justify-center gap-2 min-h-[48px]"
+            className="w-full py-4 bg-bakery-caramel hover:bg-bakery text-white font-bold text-sm rounded-full shadow-lg transition-all flex items-center justify-center gap-2 min-h-[48px] disabled:opacity-60"
           >
-            {submitting ? (
-              <ButtonLoader text="Initiating Secure Payment..." />
-            ) : (
-              <>
-                <CreditCard className="w-4 h-4" />
-                <span>Pay ₹{finalPayableTotal} Online via Razorpay</span>
-              </>
-            )}
+            <Lock className="w-4 h-4" />
+            <span>{submitting ? <ButtonLoader text="Initializing Payment..." /> : `Pay ₹${finalTotal} with Razorpay`}</span>
           </button>
 
-          <div className="flex items-center justify-center gap-2 text-[11px] text-gray-500">
-            <Lock className="w-3.5 h-3.5 text-emerald-600" />
-            <span>256-Bit SSL Encrypted Razorpay Checkout</span>
+          <div className="text-center space-y-1">
+            <div className="flex items-center justify-center gap-1.5 text-xs text-gray-600 font-medium">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Razorpay Official 256-Bit SSL Encryption</span>
+            </div>
+            <p className="text-[10px] text-gray-400">Supports Cards, UPI, NetBanking, & Wallets</p>
           </div>
         </div>
 

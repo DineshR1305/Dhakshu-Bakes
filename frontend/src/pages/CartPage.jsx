@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
 import ConfirmModal from '../components/ConfirmModal';
 import SEOHead from '../components/SEOHead';
+import FreeDeliveryProgress from '../components/FreeDeliveryProgress';
 import { ButtonLoader } from '../components/Loaders';
 import api from '../services/api';
 
@@ -121,6 +122,9 @@ export default function CartPage() {
           <Trash2 className="w-3.5 h-3.5" /> Clear Cart
         </button>
       </div>
+
+      {/* Free Delivery Progress Bar */}
+      <FreeDeliveryProgress subtotal={cart.subtotal} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         

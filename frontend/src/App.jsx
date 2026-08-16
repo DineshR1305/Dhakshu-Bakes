@@ -2,6 +2,7 @@ import React, { useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import CartDrawer from './components/CartDrawer';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import { ToastProvider } from './context/ToastContext';
@@ -48,11 +49,12 @@ export default function App() {
   }, []);
 
   return (
-    <ErrorBoundary>
-      <ToastProvider>
-        <Router>
+    <ToastProvider>
+      <Router>
+        <ErrorBoundary>
           <div className="min-h-screen flex flex-col justify-between">
             <Navbar />
+            <CartDrawer />
             
             <main className="flex-grow">
               <Suspense fallback={<PageLoader text="Baking awesome things for you..." />}>
@@ -105,8 +107,8 @@ export default function App() {
 
             <Footer />
           </div>
-        </Router>
-      </ToastProvider>
-    </ErrorBoundary>
+        </ErrorBoundary>
+      </Router>
+    </ToastProvider>
   );
 }
