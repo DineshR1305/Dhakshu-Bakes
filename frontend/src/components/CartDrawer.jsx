@@ -124,6 +124,21 @@ export default function CartDrawer() {
                       {item.productName}
                     </Link>
                     <p className="text-[11px] text-bakery-caramel font-semibold truncate">{item.variantName}</p>
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      {item.isEggless && (
+                        <span className="text-[8px] font-extrabold bg-emerald-100 text-emerald-800 px-1 py-0.5 rounded">Eggless</span>
+                      )}
+                      {item.isGiftWrapped && (
+                        <span className="text-[8px] font-extrabold bg-amber-100 text-amber-800 px-1 py-0.5 rounded">Gift Wrapped</span>
+                      )}
+                    </div>
+
+                    {item.customMessage && (
+                      <p className="text-[9px] text-gray-600 font-medium truncate mt-0.5 bg-cream-50 px-1.5 py-0.5 rounded border border-cream-200">
+                        "{item.customMessage}"
+                      </p>
+                    )}
+
                     <p className="text-xs font-extrabold text-bakery-dark mt-1">₹{item.unitPrice}</p>
                   </div>
 

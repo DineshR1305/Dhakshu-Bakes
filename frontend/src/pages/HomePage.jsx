@@ -113,7 +113,7 @@ export default function HomePage() {
                 alt="Signature Belgian Truffle Cake"
                 className="w-full h-full object-cover"
                 loading="eager"
-                fetchPriority="high"
+                fetchpriority="high"
                 decoding="async"
               />
             </div>

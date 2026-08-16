@@ -139,7 +139,29 @@ export default function CartPage() {
                     {item.productName}
                   </Link>
                   <p className="text-[11px] sm:text-xs text-bakery-caramel font-semibold">{item.variantName}</p>
-                  <p className="text-xs font-bold text-bakery-dark mt-0.5">₹{item.unitPrice}</p>
+                  {/* Customization Badges & Notes */}
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {item.isEggless && (
+                      <span className="text-[9px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Eggless</span>
+                    )}
+                    {item.isGiftWrapped && (
+                      <span className="text-[9px] font-extrabold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Gift Wrapped</span>
+                    )}
+                  </div>
+
+                  {item.customMessage && (
+                    <p className="text-[10px] text-gray-600 font-medium mt-1 bg-cream-50 px-2 py-0.5 rounded border border-cream-200">
+                      <strong className="text-bakery-dark">Message:</strong> "{item.customMessage}"
+                    </p>
+                  )}
+
+                  {item.specialInstructions && (
+                    <p className="text-[10px] text-gray-500 italic mt-0.5">
+                      Note: {item.specialInstructions}
+                    </p>
+                  )}
+
+                  <p className="text-xs font-bold text-bakery-dark mt-1">₹{item.unitPrice}</p>
                 </div>
               </div>
 

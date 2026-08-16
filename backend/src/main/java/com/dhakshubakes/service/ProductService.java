@@ -150,6 +150,12 @@ public class ProductService {
                 .isActive(product.isActive())
                 .ratingAvg(product.getRatingAvg())
                 .reviewCount(product.getReviewCount())
+                .customMessageAllowed(product.isCustomMessageAllowed())
+                .specialInstructionsAllowed(product.isSpecialInstructionsAllowed())
+                .egglessAllowed(product.isEgglessAllowed())
+                .giftWrapAllowed(product.isGiftWrapAllowed())
+                .egglessSurcharge(product.getEgglessSurcharge())
+                .giftWrapFee(product.getGiftWrapFee())
                 .variants(variants)
                 .images(images)
                 .build();

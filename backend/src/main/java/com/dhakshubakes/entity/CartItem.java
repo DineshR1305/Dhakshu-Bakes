@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "cart_items")
 @Getter
@@ -34,4 +36,22 @@ public class CartItem {
     @Min(1)
     @Column(nullable = false)
     private Integer quantity;
+
+    @Column(name = "custom_message", length = 200)
+    private String customMessage;
+
+    @Column(name = "special_instructions", length = 500)
+    private String specialInstructions;
+
+    @Builder.Default
+    @Column(name = "is_eggless", nullable = false)
+    private boolean isEggless = false;
+
+    @Builder.Default
+    @Column(name = "is_gift_wrapped", nullable = false)
+    private boolean isGiftWrapped = false;
+
+    @Builder.Default
+    @Column(name = "customization_fee", nullable = false)
+    private BigDecimal customizationFee = BigDecimal.ZERO;
 }

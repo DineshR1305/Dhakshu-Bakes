@@ -50,6 +50,10 @@ public class Order {
     @Column(name = "tax_amount", precision = 10, scale = 2)
     private BigDecimal taxAmount = BigDecimal.ZERO;
 
+    @Builder.Default
+    @Column(name = "customization_total", precision = 10, scale = 2)
+    private BigDecimal customizationTotal = BigDecimal.ZERO;
+
     @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAmount;
 
@@ -66,6 +70,13 @@ public class Order {
 
     @Column(name = "delivery_time_slot")
     private String deliveryTimeSlot;
+
+    @Builder.Default
+    @Column(name = "delivery_type", nullable = false)
+    private String deliveryType = "STANDARD";
+
+    @Column(name = "delivery_instructions", columnDefinition = "TEXT")
+    private String deliveryInstructions;
 
     @Column(name = "applied_coupon_code")
     private String appliedCouponCode;

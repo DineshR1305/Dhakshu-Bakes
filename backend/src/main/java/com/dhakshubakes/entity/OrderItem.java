@@ -46,4 +46,22 @@ public class OrderItem {
 
     @Column(name = "total_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalPrice;
+
+    @Column(name = "custom_message", length = 200)
+    private String customMessage;
+
+    @Column(name = "special_instructions", length = 500)
+    private String specialInstructions;
+
+    @Builder.Default
+    @Column(name = "is_eggless", nullable = false)
+    private boolean isEggless = false;
+
+    @Builder.Default
+    @Column(name = "is_gift_wrapped", nullable = false)
+    private boolean isGiftWrapped = false;
+
+    @Builder.Default
+    @Column(name = "customization_fee", nullable = false, precision = 10, scale = 2)
+    private BigDecimal customizationFee = BigDecimal.ZERO;
 }

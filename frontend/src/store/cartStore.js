@@ -22,9 +22,19 @@ export const useCartStore = create((set, get) => ({
     }
   },
 
-  addToCart: async (productId, variantId, quantity = 1) => {
+  addToCart: async (productId, variantId, quantity = 1, customization = {}) => {
     try {
-      const res = await api.post('/cart/items', { productId, variantId, quantity });
+      const payload = {
+        productId,
+        variantId,
+        quantity,
+        customMessage: customization.customMessage || null,
+        specialInstructions: customization.specialInstructions || null,
+        isEggless: !!customization.isEggless,
+        isGiftWrapped: !!customization.isGiftWrapped,
+      };
+
+      const res = await api.post('/cart/items', payload);
       if (res.success && res.data) {
         set({ cart: res.data });
         return { success: true, message: 'Item added to cart' };

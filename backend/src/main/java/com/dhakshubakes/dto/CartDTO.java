@@ -36,15 +36,25 @@ public class CartDTO {
         private BigDecimal unitPrice;
         private Integer quantity;
         private BigDecimal totalPrice;
+        private String customMessage;
+        private String specialInstructions;
+        private boolean isEggless;
+        private boolean isGiftWrapped;
+        private BigDecimal customizationFee;
     }
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class AddRequest {
         private Long productId;
         private Long variantId;
         private Integer quantity;
+        private String customMessage;
+        private String specialInstructions;
+        private Boolean isEggless;
+        private Boolean isGiftWrapped;
     }
 
     @Data

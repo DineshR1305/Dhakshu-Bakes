@@ -3,6 +3,8 @@ package com.dhakshubakes.service;
 import com.dhakshubakes.dto.ApiResponse;
 import com.dhakshubakes.dto.OrderDTO;
 import com.dhakshubakes.entity.*;
+import com.dhakshubakes.exception.BadRequestException;
+import com.dhakshubakes.exception.ResourceNotFoundException;
 import com.dhakshubakes.repository.*;
 import com.dhakshubakes.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -10,10 +12,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-
 import java.util.Random;
 import java.util.stream.Collectors;
 
@@ -29,11 +31,13 @@ public class OrderService {
     private final InventoryRepository inventoryRepository;
     private final CouponRepository couponRepository;
     private final CouponUsageRepository couponUsageRepository;
+    private final DeliveryService deliveryService;
+    private final DeliveryPincodeRepository pincodeRepository;
 
     @Transactional
     public ApiResponse<OrderDTO.Response> createOrderFromCart(UserPrincipal userPrincipal, OrderDTO.CheckoutRequest request) {
         User user = userRepository.findById(userPrincipal.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Cart cart = cartService.getCartEntity(userPrincipal, null);
         if (cart.getItems().isEmpty()) {
@@ -54,17 +58,29 @@ public class OrderService {
                         .fullName(user.getFullName())
                         .phone(user.getPhone() != null ? user.getPhone() : "+91 9876543210")
                         .addressLine1("104 Park Avenue")
-                        .city("Bengaluru")
-                        .state("Karnataka")
-                        .postalCode("560038")
+                        .city("Coimbatore")
+                        .state("Tamil Nadu")
+                        .postalCode("641001")
                         .country("India")
                         .isDefault(true)
                         .build());
             }
         }
 
-        // Verify stock & calculate server-side prices
-        BigDecimal subtotal = BigDecimal.ZERO;
+        // Validate Delivery Date and Reserve Slot Capacity
+        LocalDate delivDate = request.getDeliveryDate();
+        if (delivDate != null) {
+            if (delivDate.isBefore(LocalDate.now())) {
+                throw new BadRequestException("Delivery date cannot be in the past");
+            }
+            if (request.getDeliverySlotId() != null) {
+                deliveryService.reserveDeliverySlot(delivDate, request.getDeliverySlotId());
+            }
+        }
+
+        // Verify stock & calculate server-side prices + customizations
+        BigDecimal itemsSubtotal = BigDecimal.ZERO;
+        BigDecimal customizationTotal = BigDecimal.ZERO;
         List<OrderItem> orderItems = new ArrayList<>();
 
         for (CartItem ci : cart.getItems()) {
@@ -73,32 +89,54 @@ public class OrderService {
                 return ApiResponse.error("Item '" + ci.getProduct().getName() + " (" + variant.getVariantName() + ")' is out of stock", "OUT_OF_STOCK");
             }
 
-            BigDecimal unitPrice = variant.getDiscountPrice() != null ? variant.getDiscountPrice() : variant.getPrice();
-            BigDecimal itemTotal = unitPrice.multiply(BigDecimal.valueOf(ci.getQuantity()));
-            subtotal = subtotal.add(itemTotal);
+            BigDecimal basePrice = variant.getDiscountPrice() != null ? variant.getDiscountPrice() : variant.getPrice();
+            BigDecimal customFee = ci.getCustomizationFee() != null ? ci.getCustomizationFee() : BigDecimal.ZERO;
+            BigDecimal unitPriceWithCustom = basePrice.add(customFee);
+            BigDecimal itemTotal = unitPriceWithCustom.multiply(BigDecimal.valueOf(ci.getQuantity()));
+
+            itemsSubtotal = itemsSubtotal.add(basePrice.multiply(BigDecimal.valueOf(ci.getQuantity())));
+            customizationTotal = customizationTotal.add(customFee.multiply(BigDecimal.valueOf(ci.getQuantity())));
 
             OrderItem orderItem = OrderItem.builder()
                     .product(ci.getProduct())
                     .variant(variant)
                     .productName(ci.getProduct().getName())
                     .variantName(variant.getVariantName())
-                    .unitPrice(unitPrice)
+                    .unitPrice(unitPriceWithCustom)
                     .quantity(ci.getQuantity())
                     .totalPrice(itemTotal)
+                    .customMessage(ci.getCustomMessage())
+                    .specialInstructions(ci.getSpecialInstructions())
+                    .isEggless(ci.isEggless())
+                    .isGiftWrapped(ci.isGiftWrapped())
+                    .customizationFee(customFee)
                     .build();
 
             orderItems.add(orderItem);
         }
 
+        BigDecimal fullSubtotal = itemsSubtotal.add(customizationTotal);
+
         // Apply coupon if valid
         BigDecimal discount = BigDecimal.ZERO;
         if (request.getCouponCode() != null && !request.getCouponCode().isBlank()) {
-            discount = couponService.calculateCouponDiscount(request.getCouponCode(), subtotal);
+            discount = couponService.calculateCouponDiscount(request.getCouponCode(), fullSubtotal);
         }
 
-        // Delivery Charge: Free over 499, else 50
-        BigDecimal deliveryFee = subtotal.compareTo(new BigDecimal("499")) >= 0 ? BigDecimal.ZERO : new BigDecimal("50.00");
-        BigDecimal total = subtotal.subtract(discount).add(deliveryFee);
+        // Server-side delivery fee calculation
+        String pincode = address.getPostalCode() != null ? address.getPostalCode().trim() : "641001";
+        boolean freeDelivery = fullSubtotal.compareTo(new BigDecimal("499.00")) >= 0;
+        BigDecimal baseDeliveryFee = freeDelivery ? BigDecimal.ZERO : new BigDecimal("50.00");
+
+        String delivType = request.getDeliveryType() != null ? request.getDeliveryType().toUpperCase() : "STANDARD";
+        BigDecimal surcharge = switch (delivType) {
+            case "EXPRESS" -> new BigDecimal("40.00");
+            case "SAME_DAY" -> new BigDecimal("60.00");
+            default -> BigDecimal.ZERO;
+        };
+
+        BigDecimal deliveryFee = baseDeliveryFee.add(surcharge);
+        BigDecimal total = fullSubtotal.subtract(discount).add(deliveryFee);
 
         String orderNumber = "DB-" + System.currentTimeMillis() / 1000 + "-" + (1000 + new Random().nextInt(9000));
 
@@ -106,15 +144,18 @@ public class OrderService {
                 .orderNumber(orderNumber)
                 .user(user)
                 .shippingAddress(address)
-                .subtotal(subtotal)
+                .subtotal(fullSubtotal)
+                .customizationTotal(customizationTotal)
                 .discountAmount(discount)
                 .deliveryFee(deliveryFee)
                 .taxAmount(BigDecimal.ZERO)
                 .totalAmount(total)
                 .orderStatus(OrderStatus.PENDING)
                 .paymentStatus(PaymentStatus.PENDING)
-                .deliveryDate(request.getDeliveryDate())
+                .deliveryDate(delivDate)
                 .deliveryTimeSlot(request.getDeliveryTimeSlot())
+                .deliveryType(delivType)
+                .deliveryInstructions(request.getDeliveryInstructions())
                 .appliedCouponCode(request.getCouponCode())
                 .isGift(request.isGift())
                 .giftMessage(request.getGiftMessage())
@@ -145,9 +186,10 @@ public class OrderService {
     @Transactional(readOnly = true)
     public ApiResponse<OrderDTO.Response> getOrderByNumber(UserPrincipal userPrincipal, String orderNumber) {
         Order order = orderRepository.findByOrderNumber(orderNumber)
-                .orElseThrow(() -> new RuntimeException("Order not found: " + orderNumber));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderNumber));
 
-        if (!order.getUser().getId().equals(userPrincipal.getId()) && !userPrincipal.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+        if (!order.getUser().getId().equals(userPrincipal.getId()) &&
+                !userPrincipal.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
             return ApiResponse.error("Unauthorized to view this order", "UNAUTHORIZED");
         }
 
@@ -171,6 +213,11 @@ public class OrderService {
                 .unitPrice(item.getUnitPrice())
                 .quantity(item.getQuantity())
                 .totalPrice(item.getTotalPrice())
+                .customMessage(item.getCustomMessage())
+                .specialInstructions(item.getSpecialInstructions())
+                .isEggless(item.isEggless())
+                .isGiftWrapped(item.isGiftWrapped())
+                .customizationFee(item.getCustomizationFee())
                 .build()).collect(Collectors.toList());
 
         String razorpayId = order.getPayment() != null ? order.getPayment().getRazorpayOrderId() : null;
@@ -182,6 +229,7 @@ public class OrderService {
                 .customerEmail(order.getUser().getEmail())
                 .shippingAddress(addressDTO)
                 .subtotal(order.getSubtotal())
+                .customizationTotal(order.getCustomizationTotal())
                 .discountAmount(order.getDiscountAmount())
                 .deliveryFee(order.getDeliveryFee())
                 .taxAmount(order.getTaxAmount())
@@ -190,6 +238,8 @@ public class OrderService {
                 .paymentStatus(order.getPaymentStatus())
                 .deliveryDate(order.getDeliveryDate())
                 .deliveryTimeSlot(order.getDeliveryTimeSlot())
+                .deliveryType(order.getDeliveryType())
+                .deliveryInstructions(order.getDeliveryInstructions())
                 .appliedCouponCode(order.getAppliedCouponCode())
                 .isGift(order.isGift())
                 .giftMessage(order.getGiftMessage())
@@ -203,24 +253,21 @@ public class OrderService {
     @Transactional
     public ApiResponse<OrderDTO.Response> cancelOrder(UserPrincipal userPrincipal, Long orderId) {
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new com.dhakshubakes.exception.ResourceNotFoundException("Order not found with ID: " + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
 
         if (!order.getUser().getId().equals(userPrincipal.getId()) &&
                 userPrincipal.getAuthorities().stream().noneMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
             return ApiResponse.error("Unauthorized to cancel this order", "UNAUTHORIZED");
         }
 
-        // Idempotency: if already cancelled, return cleanly without duplicating inventory restoration
         if (order.getOrderStatus() == OrderStatus.CANCELLED) {
             return ApiResponse.success("Order is already cancelled", mapToResponse(order));
         }
 
-        // State Machine Check: Customer can only cancel PENDING or CONFIRMED orders
         if (order.getOrderStatus() != OrderStatus.PENDING && order.getOrderStatus() != OrderStatus.CONFIRMED) {
-            throw new com.dhakshubakes.exception.BadRequestException("Order cannot be cancelled in " + order.getOrderStatus() + " stage.");
+            throw new BadRequestException("Order cannot be cancelled in " + order.getOrderStatus() + " stage.");
         }
 
-        // 1. Idempotent Inventory Restoration
         for (OrderItem item : order.getItems()) {
             ProductVariant variant = item.getVariant();
             if (variant != null && variant.getInventory() != null) {
@@ -234,7 +281,6 @@ public class OrderService {
             }
         }
 
-        // 2. Idempotent Coupon Restoration
         if (order.getAppliedCouponCode() != null && !order.getAppliedCouponCode().isBlank()) {
             Coupon coupon = couponRepository.findByCodeIgnoreCase(order.getAppliedCouponCode()).orElse(null);
             if (coupon != null) {
@@ -244,7 +290,6 @@ public class OrderService {
                     coupon.setUsedCount(newCount);
                     couponRepository.save(coupon);
 
-                    // Delete the CouponUsage audit record
                     couponUsageRepository.findAll().stream()
                             .filter(u -> u.getOrder().getId().equals(order.getId()) && u.getCoupon().getId().equals(coupon.getId()))
                             .forEach(couponUsageRepository::delete);
@@ -252,7 +297,6 @@ public class OrderService {
             }
         }
 
-        // 3. Payment State Handling (Clear refund pending state)
         if (order.getPaymentStatus() == PaymentStatus.PAID) {
             order.setPaymentStatus(PaymentStatus.REFUND_PENDING);
         } else {
@@ -268,24 +312,23 @@ public class OrderService {
     @Transactional
     public ApiResponse<OrderDTO.Response> updateOrderStatus(Long orderId, OrderStatus newStatus) {
         Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new com.dhakshubakes.exception.ResourceNotFoundException("Order not found with ID: " + orderId));
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with ID: " + orderId));
 
         OrderStatus currentStatus = order.getOrderStatus();
         if (currentStatus == newStatus) {
             return ApiResponse.success("Order status unchanged", mapToResponse(order));
         }
 
-        // Validate state machine transitions
         boolean isValid = switch (currentStatus) {
             case PENDING -> newStatus == OrderStatus.CONFIRMED || newStatus == OrderStatus.CANCELLED;
             case CONFIRMED -> newStatus == OrderStatus.PROCESSING || newStatus == OrderStatus.BAKING || newStatus == OrderStatus.CANCELLED;
             case PROCESSING, BAKING -> newStatus == OrderStatus.READY_FOR_PICKUP || newStatus == OrderStatus.OUT_FOR_DELIVERY || newStatus == OrderStatus.CANCELLED;
             case READY_FOR_PICKUP, OUT_FOR_DELIVERY -> newStatus == OrderStatus.DELIVERED || newStatus == OrderStatus.CANCELLED;
-            case DELIVERED, CANCELLED, REFUNDED -> false; // Terminal states
+            case DELIVERED, CANCELLED, REFUNDED -> false;
         };
 
         if (!isValid) {
-            throw new com.dhakshubakes.exception.BadRequestException("Invalid order status transition from " + currentStatus + " to " + newStatus);
+            throw new BadRequestException("Invalid order status transition from " + currentStatus + " to " + newStatus);
         }
 
         order.setOrderStatus(newStatus);

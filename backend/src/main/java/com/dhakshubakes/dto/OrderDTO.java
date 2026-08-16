@@ -18,6 +18,7 @@ public class OrderDTO {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    @Builder
     public static class CheckoutRequest {
         @NotNull(message = "Shipping address ID is required")
         private Long shippingAddressId;
@@ -25,6 +26,9 @@ public class OrderDTO {
         private String couponCode;
         private LocalDate deliveryDate;
         private String deliveryTimeSlot;
+        private Long deliverySlotId;
+        private String deliveryType; // STANDARD, EXPRESS, SAME_DAY
+        private String deliveryInstructions;
         private boolean isGift;
         private String giftMessage;
         private String recipientName;
@@ -45,11 +49,14 @@ public class OrderDTO {
         private BigDecimal discountAmount;
         private BigDecimal deliveryFee;
         private BigDecimal taxAmount;
+        private BigDecimal customizationTotal;
         private BigDecimal totalAmount;
         private OrderStatus orderStatus;
         private PaymentStatus paymentStatus;
         private LocalDate deliveryDate;
         private String deliveryTimeSlot;
+        private String deliveryType;
+        private String deliveryInstructions;
         private String appliedCouponCode;
         private boolean isGift;
         private String giftMessage;
@@ -73,6 +80,11 @@ public class OrderDTO {
         private BigDecimal unitPrice;
         private Integer quantity;
         private BigDecimal totalPrice;
+        private String customMessage;
+        private String specialInstructions;
+        private boolean isEggless;
+        private boolean isGiftWrapped;
+        private BigDecimal customizationFee;
     }
 
     @Data

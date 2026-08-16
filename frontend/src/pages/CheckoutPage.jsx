@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Truck, Calendar, Clock, Gift, CreditCard, Lock, CheckCircle, Tag, Trash2, MapPin } from 'lucide-react';
+import { ShieldCheck, Truck, Calendar, Clock, Gift, CreditCard, Lock, CheckCircle, Tag, Trash2, MapPin, Sparkles, AlertCircle } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
@@ -24,13 +24,22 @@ export default function CheckoutPage() {
   const [phone, setPhone] = useState(user?.phone || '');
   const [addressLine1, setAddressLine1] = useState('');
   const [addressLine2, setAddressLine2] = useState('');
-  const [city, setCity] = useState('Bengaluru');
-  const [state, setState] = useState('Karnataka');
-  const [postalCode, setPostalCode] = useState('560001');
+  const [city, setCity] = useState('Coimbatore');
+  const [state, setState] = useState('Tamil Nadu');
+  const [postalCode, setPostalCode] = useState('641001');
 
-  // Delivery preferences
+  // Delivery Serviceability & Type
+  const [serviceability, setServiceability] = useState(null);
+  const [checkingPincode, setCheckingPincode] = useState(false);
+  const [deliveryType, setDeliveryType] = useState('STANDARD'); // STANDARD, EXPRESS, SAME_DAY
+  const [deliveryInstructions, setDeliveryInstructions] = useState('');
+
+  // Delivery Schedule & Slots
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
-  const [deliveryTimeSlot, setDeliveryTimeSlot] = useState('10:00 AM - 01:00 PM');
+  const [slots, setSlots] = useState([]);
+  const [selectedSlotId, setSelectedSlotId] = useState(null);
+  const [deliveryTimeSlot, setDeliveryTimeSlot] = useState('');
+  const [loadingSlots, setLoadingSlots] = useState(false);
 
   // Gift options
   const [isGift, setIsGift] = useState(false);
@@ -45,12 +54,6 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    // Inject Razorpay SDK
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    document.body.appendChild(script);
-
     // Validate stored coupon if present
     if (appliedCoupon && cart.subtotal > 0) {
       validateCoupon(appliedCoupon);
@@ -61,6 +64,18 @@ export default function CheckoutPage() {
       loadSavedAddresses();
     }
   }, [cart.subtotal, user]);
+
+  useEffect(() => {
+    if (deliveryDate) {
+      fetchDeliverySlots(deliveryDate);
+    }
+  }, [deliveryDate]);
+
+  useEffect(() => {
+    if (postalCode && postalCode.trim().length >= 6) {
+      checkPincodeServiceability(postalCode.trim(), deliveryType);
+    }
+  }, [postalCode, cart.subtotal, deliveryType]);
 
   const loadSavedAddresses = async () => {
     try {
@@ -88,6 +103,46 @@ export default function CheckoutPage() {
     setPostalCode(addr.postalCode);
   };
 
+  const fetchDeliverySlots = async (dateStr) => {
+    setLoadingSlots(true);
+    try {
+      const res = await api.get(`/delivery/slots?date=${dateStr}`);
+      if (res.success && Array.isArray(res.data)) {
+        setSlots(res.data);
+        const available = res.data.find(s => s.available);
+        if (available) {
+          setSelectedSlotId(available.id);
+          setDeliveryTimeSlot(available.slotName);
+        } else {
+          setSelectedSlotId(null);
+          setDeliveryTimeSlot('');
+        }
+      }
+    } catch (e) {
+      console.error('Error loading delivery slots:', e);
+    } finally {
+      setLoadingSlots(false);
+    }
+  };
+
+  const checkPincodeServiceability = async (code, type) => {
+    setCheckingPincode(true);
+    try {
+      const res = await api.post('/delivery/check-serviceability', {
+        pincode: code,
+        subtotal: cart.subtotal,
+        deliveryType: type,
+      });
+      if (res.success && res.data) {
+        setServiceability(res.data);
+      }
+    } catch (e) {
+      console.error('Error checking serviceability:', e);
+    } finally {
+      setCheckingPincode(false);
+    }
+  };
+
   const validateCoupon = async (code) => {
     if (!code) return;
     setValidatingCoupon(true);
@@ -97,7 +152,7 @@ export default function CheckoutPage() {
         orderSubtotal: cart.subtotal,
       });
 
-      if (res.success && res.data.valid) {
+      if (res.success && res.data && res.data.valid) {
         setCouponDiscount(res.data.calculatedDiscount);
       } else {
         setCouponDiscount(0);
@@ -111,21 +166,24 @@ export default function CheckoutPage() {
     }
   };
 
-  const handleRemoveCoupon = () => {
-    setAppliedCoupon('');
-    setCouponDiscount(0);
-    localStorage.removeItem('dhakshu_applied_coupon');
-    showToast('Coupon removed', 'info');
-  };
-
-  const deliveryFee = cart.subtotal >= 499 || cart.subtotal === 0 ? 0 : 50;
-  const finalTotal = Math.max(0, cart.subtotal - couponDiscount + deliveryFee);
+  const calculatedDeliveryFee = serviceability?.deliveryFee != null ? serviceability.deliveryFee : (cart.subtotal >= 499 ? 0 : 50);
+  const finalTotal = Math.max(0, cart.subtotal - couponDiscount + calculatedDeliveryFee);
 
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
 
     if (!fullName || !phone || !addressLine1 || !city || !postalCode) {
       showToast('Please fill in all required shipping address fields', 'warning');
+      return;
+    }
+
+    if (serviceability && !serviceability.serviceable) {
+      showToast(`Delivery is not available to pincode ${postalCode}`, 'error');
+      return;
+    }
+
+    if (!deliveryTimeSlot && slots.length > 0) {
+      showToast('Please select an available delivery slot', 'warning');
       return;
     }
 
@@ -143,6 +201,9 @@ export default function CheckoutPage() {
         postalCode,
         deliveryDate,
         deliveryTimeSlot,
+        deliverySlotId: selectedSlotId,
+        deliveryType,
+        deliveryInstructions,
         isGift,
         recipientName: isGift ? recipientName : null,
         giftMessage: isGift ? giftMessage : null,
@@ -309,20 +370,78 @@ export default function CheckoutPage() {
                   autoComplete="postal-code"
                   value={postalCode}
                   onChange={(e) => setPostalCode(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg"
+                  className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg font-bold"
                 />
               </div>
             </div>
+
+            {/* Pincode Serviceability Status Badge */}
+            {serviceability && (
+              <div className={`p-3 rounded-xl border text-xs flex items-center gap-2.5 ${
+                serviceability.serviceable ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}>
+                <MapPin className="w-4 h-4 shrink-0" />
+                <span className="font-semibold">{serviceability.message}</span>
+              </div>
+            )}
           </div>
 
-          {/* Step 2: Delivery Date & Time Slot */}
+          {/* Step 2: Delivery Schedule & Slots */}
           <div className="bg-white p-6 rounded-2xl border border-cream-200 shadow-xs space-y-4">
             <h3 className="font-serif font-bold text-base text-bakery-dark flex items-center gap-2">
               <Calendar className="w-5 h-5 text-bakery-caramel" />
-              <span>2. Delivery Schedule</span>
+              <span>2. Delivery Schedule & Time Slot</span>
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Delivery Type Option Selector */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setDeliveryType('STANDARD')}
+                className={`p-3 rounded-xl border text-left text-xs transition-all ${
+                  deliveryType === 'STANDARD'
+                    ? 'border-bakery-caramel bg-cream-100/70 font-bold text-bakery-dark shadow-2xs'
+                    : 'border-cream-300 bg-white text-gray-600 hover:border-cream-400'
+                }`}
+              >
+                <span className="font-extrabold block text-bakery-dark">Standard Delivery</span>
+                <span className="text-[11px] text-gray-500 block mt-0.5">Free over ₹499 (else ₹50)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeliveryType('EXPRESS')}
+                className={`p-3 rounded-xl border text-left text-xs transition-all ${
+                  deliveryType === 'EXPRESS'
+                    ? 'border-bakery-caramel bg-cream-100/70 font-bold text-bakery-dark shadow-2xs'
+                    : 'border-cream-300 bg-white text-gray-600 hover:border-cream-400'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold block text-bakery-dark">Express Delivery</span>
+                  <span className="text-[9px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded">+₹40</span>
+                </div>
+                <span className="text-[11px] text-gray-500 block mt-0.5">Priority dispatch window</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeliveryType('SAME_DAY')}
+                className={`p-3 rounded-xl border text-left text-xs transition-all ${
+                  deliveryType === 'SAME_DAY'
+                    ? 'border-bakery-caramel bg-cream-100/70 font-bold text-bakery-dark shadow-2xs'
+                    : 'border-cream-300 bg-white text-gray-600 hover:border-cream-400'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold block text-bakery-dark">Same-Day Fresh</span>
+                  <span className="text-[9px] bg-emerald-100 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded">+₹60</span>
+                </div>
+                <span className="text-[11px] text-gray-500 block mt-0.5">Baked & delivered today</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               <div>
                 <label htmlFor="checkout_deliveryDate" className="block text-xs font-bold text-gray-700 mb-1">Preferred Delivery Date</label>
                 <input
@@ -331,22 +450,62 @@ export default function CheckoutPage() {
                   value={deliveryDate}
                   min={new Date().toISOString().split('T')[0]}
                   onChange={(e) => setDeliveryDate(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg"
+                  className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg font-bold"
                 />
               </div>
+
               <div>
-                <label htmlFor="checkout_deliveryTimeSlot" className="block text-xs font-bold text-gray-700 mb-1">Select Time Slot</label>
-                <select
-                  id="checkout_deliveryTimeSlot"
-                  value={deliveryTimeSlot}
-                  onChange={(e) => setDeliveryTimeSlot(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg font-medium"
-                >
-                  <option value="10:00 AM - 01:00 PM">Morning Slot (10:00 AM - 01:00 PM)</option>
-                  <option value="02:00 PM - 05:00 PM">Afternoon Slot (02:00 PM - 05:00 PM)</option>
-                  <option value="06:00 PM - 09:00 PM">Evening Slot (06:00 PM - 09:00 PM)</option>
-                </select>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Available Time Slots</label>
+                {loadingSlots ? (
+                  <p className="text-xs text-gray-400 py-2">Loading slots...</p>
+                ) : slots.length === 0 ? (
+                  <p className="text-xs text-red-500 italic py-2">No slots available for this date.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {slots.map((s) => (
+                      <button
+                        key={s.id}
+                        type="button"
+                        disabled={!s.available}
+                        onClick={() => {
+                          setSelectedSlotId(s.id);
+                          setDeliveryTimeSlot(s.slotName);
+                        }}
+                        className={`w-full p-2.5 rounded-xl border text-left text-xs transition-all flex items-center justify-between ${
+                          selectedSlotId === s.id
+                            ? 'border-bakery-caramel bg-cream-100/80 font-bold text-bakery-dark shadow-2xs'
+                            : s.available
+                            ? 'border-cream-300 bg-white text-gray-700 hover:border-cream-400'
+                            : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-3.5 h-3.5 text-bakery-caramel shrink-0" />
+                          <span className="font-bold">{s.slotName}</span>
+                        </div>
+                        <span className="text-[10px] font-semibold">
+                          {s.available ? `${s.remainingCapacity} slots left` : 'Fully booked'}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
+            </div>
+
+            {/* Delivery Instructions */}
+            <div className="pt-2 border-t border-cream-100">
+              <label htmlFor="checkout_deliveryInstructions" className="block text-xs font-bold text-gray-700 mb-1">
+                Driver Delivery Instructions <span className="text-gray-400 font-normal">(Optional)</span>
+              </label>
+              <input
+                id="checkout_deliveryInstructions"
+                type="text"
+                placeholder="e.g. Ring bell twice / leave with security guard..."
+                value={deliveryInstructions}
+                onChange={(e) => setDeliveryInstructions(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-cream-100 border border-cream-300 rounded-lg"
+              />
             </div>
           </div>
 
@@ -379,10 +538,10 @@ export default function CheckoutPage() {
                   <label className="block font-bold text-gray-700 mb-1">Custom Gift Message</label>
                   <textarea
                     rows={2}
-                    placeholder="Wishing you a wonderful celebration! Warm wishes..."
+                    placeholder="Message to write on gift card..."
                     value={giftMessage}
                     onChange={(e) => setGiftMessage(e.target.value)}
-                    className="w-full p-2.5 bg-cream-100 border border-cream-300 rounded-lg"
+                    className="w-full px-3 py-2 bg-cream-100 border border-cream-300 rounded-lg"
                   />
                 </div>
               </div>
@@ -391,72 +550,81 @@ export default function CheckoutPage() {
 
         </form>
 
-        {/* Right Sidebar: Authoritative Pricing & Payment Button */}
-        <div className="bg-white p-6 rounded-2xl border border-cream-200 shadow-xs h-fit space-y-6">
-          <h3 className="font-serif text-lg font-bold text-bakery-dark border-b border-cream-200 pb-3">Authoritative Total</h3>
+        {/* Right Sidebar: Order Summary & Place Order */}
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl border border-cream-200 shadow-xs space-y-6 sticky top-24">
+            <h3 className="font-serif text-lg font-bold text-bakery-dark border-b border-cream-200 pb-3">Order Summary</h3>
 
-          {/* Free Delivery Progress Banner */}
-          <FreeDeliveryProgress subtotal={cart.subtotal} />
+            {/* Cart Items Preview */}
+            <div className="space-y-3 max-h-60 overflow-y-auto pr-1 border-b border-cream-200 pb-4">
+              {cart.items.map((item) => (
+                <div key={item.id} className="flex justify-between items-center text-xs">
+                  <div className="min-w-0 pr-2">
+                    <span className="font-bold text-bakery-dark block truncate">{item.productName}</span>
+                    <span className="text-[11px] text-gray-500 block">
+                      {item.variantName} × {item.quantity}
+                    </span>
+                    {item.customMessage && (
+                      <span className="text-[10px] text-bakery-caramel block italic truncate">
+                        "{item.customMessage}"
+                      </span>
+                    )}
+                  </div>
+                  <span className="font-bold text-bakery-dark shrink-0">₹{item.totalPrice}</span>
+                </div>
+              ))}
+            </div>
 
-          {/* Active Coupon Status */}
-          {appliedCoupon && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-2 text-emerald-800 text-xs font-bold">
-                <Tag className="w-4 h-4 text-emerald-600" />
-                <span>Coupon ({appliedCoupon}) Applied</span>
+            {/* Cost Breakdown */}
+            <div className="space-y-2.5 text-xs">
+              <div className="flex justify-between text-gray-600">
+                <span>Subtotal</span>
+                <span className="font-bold text-bakery-dark">₹{cart.subtotal}</span>
               </div>
-              <button
-                type="button"
-                onClick={handleRemoveCoupon}
-                className="text-[11px] font-bold text-red-600 hover:text-red-800 flex items-center gap-0.5"
-              >
-                <Trash2 className="w-3 h-3" /> Remove
-              </button>
-            </div>
-          )}
 
-          <div className="space-y-2.5 text-xs text-gray-600">
-            <div className="flex justify-between">
-              <span>Cart Subtotal</span>
-              <span className="font-bold text-bakery-dark">₹{cart.subtotal}</span>
-            </div>
+              {couponDiscount > 0 && (
+                <div className="flex justify-between text-emerald-600 font-semibold">
+                  <span>Coupon Discount</span>
+                  <span>- ₹{couponDiscount}</span>
+                </div>
+              )}
 
-            {couponDiscount > 0 && (
-              <div className="flex justify-between text-emerald-600 font-semibold">
-                <span>Coupon Discount</span>
-                <span>- ₹{couponDiscount}</span>
+              <div className="flex justify-between text-gray-600">
+                <span>Delivery Fee ({deliveryType})</span>
+                <span className="font-bold text-bakery-dark">
+                  {calculatedDeliveryFee === 0 ? <span className="text-emerald-600 font-bold">FREE</span> : `₹${calculatedDeliveryFee}`}
+                </span>
               </div>
-            )}
 
-            <div className="flex justify-between">
-              <span>Delivery Fee</span>
-              <span className="font-bold text-bakery-dark">
-                {deliveryFee === 0 ? <span className="text-emerald-600 font-bold">FREE</span> : `₹${deliveryFee}`}
-              </span>
+              <div className="border-t border-cream-200 pt-3 flex justify-between text-base font-extrabold text-bakery-dark">
+                <span>Total Amount</span>
+                <span>₹{finalTotal}</span>
+              </div>
             </div>
 
-            <div className="border-t border-cream-200 pt-3 flex justify-between text-lg font-extrabold text-bakery-dark">
-              <span>Final Total Amount</span>
-              <span>₹{finalTotal}</span>
-            </div>
-          </div>
+            {/* Place Order Action Button */}
+            <button
+              type="submit"
+              form="checkout-form"
+              disabled={submitting || (serviceability && !serviceability.serviceable)}
+              className="w-full py-4 bg-bakery-caramel hover:bg-bakery text-white font-bold text-xs uppercase tracking-wider rounded-full shadow-lg transition-all flex items-center justify-center gap-2 min-h-[48px] disabled:bg-gray-400 cursor-pointer"
+            >
+              {submitting ? (
+                <ButtonLoader text="Processing Order..." />
+              ) : (
+                <>
+                  <Lock className="w-4 h-4" />
+                  <span>Place Order (₹{finalTotal})</span>
+                </>
+              )}
+            </button>
 
-          <button
-            type="submit"
-            form="checkout-form"
-            disabled={submitting}
-            className="w-full py-4 bg-bakery-caramel hover:bg-bakery text-white font-bold text-sm rounded-full shadow-lg transition-all flex items-center justify-center gap-2 min-h-[48px] disabled:opacity-60"
-          >
-            <Lock className="w-4 h-4" />
-            <span>{submitting ? <ButtonLoader text="Processing Order..." /> : `Place Order (₹${finalTotal})`}</span>
-          </button>
-
-          <div className="text-center space-y-1">
-            <div className="flex items-center justify-center gap-1.5 text-xs text-gray-600 font-medium">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              <span>Razorpay Official 256-Bit SSL Encryption</span>
+            <div className="text-center space-y-1">
+              <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-500 font-medium">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>100% Fresh Bake & Secure Checkout</span>
+              </div>
             </div>
-            <p className="text-[10px] text-gray-400">Supports Cards, UPI, NetBanking, & Wallets</p>
           </div>
         </div>
 

@@ -224,7 +224,29 @@ export default function OrderDetailPage() {
                         {item.productName}
                       </Link>
                       <p className="text-[11px] text-bakery-caramel font-semibold">{item.variantName}</p>
-                      <p className="text-gray-500 mt-0.5">₹{item.unitPrice} × {item.quantity}</p>
+                      {/* Customization Details Badges */}
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {item.isEggless && (
+                          <span className="text-[9px] font-extrabold bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">Eggless</span>
+                        )}
+                        {item.isGiftWrapped && (
+                          <span className="text-[9px] font-extrabold bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded">Gift Wrapped</span>
+                        )}
+                      </div>
+
+                      {item.customMessage && (
+                        <p className="text-[10px] text-gray-700 font-medium mt-1 bg-cream-50 px-2 py-0.5 rounded border border-cream-200">
+                          <strong className="text-bakery-dark">Message:</strong> "{item.customMessage}"
+                        </p>
+                      )}
+
+                      {item.specialInstructions && (
+                        <p className="text-[10px] text-gray-500 italic mt-0.5">
+                          Instructions: {item.specialInstructions}
+                        </p>
+                      )}
+
+                      <p className="text-gray-500 mt-1 text-xs font-semibold">₹{item.unitPrice} × {item.quantity}</p>
                     </div>
                   </div>
                   <span className="font-extrabold text-sm text-bakery-dark">₹{item.totalPrice}</span>
@@ -235,11 +257,11 @@ export default function OrderDetailPage() {
 
           {/* Delivery & Schedule Info */}
           <div className="bg-white p-6 rounded-3xl border border-cream-200 shadow-xs space-y-4 text-xs">
-            <h3 className="font-serif font-bold text-base text-bakery-dark border-b border-cream-200 pb-3">Delivery Information</h3>
+            <h3 className="font-serif font-bold text-base text-bakery-dark border-b border-cream-200 pb-3">Delivery & Fulfillment Details</h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <span className="font-bold text-gray-500 uppercase tracking-wider block mb-1 text-[10px]">Shipping Address</span>
+                <span className="font-bold text-gray-500 uppercase tracking-wider block mb-1 text-[10px]">Shipping Destination</span>
                 {order.shippingAddress ? (
                   <div className="space-y-0.5 text-gray-700">
                     <p className="font-bold text-bakery-dark">{order.shippingAddress.fullName}</p>
@@ -253,9 +275,15 @@ export default function OrderDetailPage() {
               </div>
 
               <div>
-                <span className="font-bold text-gray-500 uppercase tracking-wider block mb-1 text-[10px]">Schedule & Preferences</span>
+                <span className="font-bold text-gray-500 uppercase tracking-wider block mb-1 text-[10px]">Schedule & Delivery Type</span>
+                <p className="font-semibold text-bakery-dark">Type: <span className="uppercase text-bakery-caramel">{order.deliveryType || 'STANDARD'}</span></p>
                 <p className="font-semibold text-bakery-dark">Date: {order.deliveryDate || 'Standard Delivery'}</p>
-                <p className="text-gray-600">Slot: {order.deliveryTimeSlot || '10:00 AM - 01:00 PM'}</p>
+                <p className="text-gray-600">Slot: {order.deliveryTimeSlot || 'Morning Slot (09:00 AM - 12:00 PM)'}</p>
+                {order.deliveryInstructions && (
+                  <p className="text-[11px] text-gray-500 italic mt-1 bg-cream-50 p-2 rounded border border-cream-200">
+                    <strong>Instructions:</strong> {order.deliveryInstructions}
+                  </p>
+                )}
                 {order.isGift && (
                   <div className="mt-2 p-2 bg-rose-50 border border-rose-200 rounded-lg text-rose-800">
                     <p className="font-bold">🎁 Gift Package for: {order.recipientName}</p>

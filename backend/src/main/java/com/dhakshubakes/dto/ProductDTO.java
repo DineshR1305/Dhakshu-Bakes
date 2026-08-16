@@ -35,6 +35,12 @@ public class ProductDTO {
         private boolean isActive;
         private Double ratingAvg;
         private Integer reviewCount;
+        private boolean customMessageAllowed;
+        private boolean specialInstructionsAllowed;
+        private boolean egglessAllowed;
+        private boolean giftWrapAllowed;
+        private BigDecimal egglessSurcharge;
+        private BigDecimal giftWrapFee;
         private List<VariantResponse> variants;
         private List<ImageResponse> images;
     }

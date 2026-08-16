@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, Heart, ShoppingBag, Leaf, ShieldCheck, Truck, ChevronLeft, ChevronRight, ZoomIn, Plus, Minus } from 'lucide-react';
+import { Star, Heart, ShoppingBag, Leaf, ShieldCheck, Truck, ChevronLeft, ChevronRight, ZoomIn, Plus, Minus, Sparkles } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useAuthStore } from '../store/authStore';
@@ -28,6 +28,12 @@ export default function ProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+
+  // Customization State
+  const [customMessage, setCustomMessage] = useState('');
+  const [specialInstructions, setSpecialInstructions] = useState('');
+  const [isEggless, setIsEggless] = useState(false);
+  const [isGiftWrapped, setIsGiftWrapped] = useState(false);
 
   // Review Form
   const [newRating, setNewRating] = useState(5);
@@ -88,7 +94,7 @@ export default function ProductDetailPage() {
   }, [slug]);
 
   if (loading) {
-    return <PageLoader text="Loading product details..." />;
+    return <PageLoader text="Loading fresh bake details..." />;
   }
 
   if (notFound || !product) {
@@ -121,7 +127,8 @@ export default function ProductDetailPage() {
         showToast(`Maximum available stock reached for ${product.name}`, 'warning');
         return;
       }
-      const res = await addToCart(product.id, selectedVariant.id, quantity);
+      const customization = { customMessage, specialInstructions, isEggless, isGiftWrapped };
+      const res = await addToCart(product.id, selectedVariant.id, quantity, customization);
       if (res && res.success) {
         showToast(`Added ${product.name} to cart!`, 'success');
         openDrawer();
@@ -131,7 +138,8 @@ export default function ProductDetailPage() {
 
   const handleBuyNow = async () => {
     if (selectedVariant && product) {
-      const res = await addToCart(product.id, selectedVariant.id, quantity);
+      const customization = { customMessage, specialInstructions, isEggless, isGiftWrapped };
+      const res = await addToCart(product.id, selectedVariant.id, quantity, customization);
       if (res && res.success) {
         navigate('/cart');
       }
@@ -347,6 +355,85 @@ export default function ProductDetailPage() {
                     {v.variantName} — ₹{v.discountPrice || v.price}
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Bakery Order Customization Section */}
+          {(product.customMessageAllowed || product.specialInstructionsAllowed || product.egglessAllowed || product.giftWrapAllowed) && (
+            <div className="bg-cream-100/70 p-4 sm:p-5 rounded-2xl border border-cream-200 space-y-3">
+              <div className="flex items-center gap-2 border-b border-cream-200 pb-2">
+                <Sparkles className="w-4 h-4 text-bakery-caramel" />
+                <h3 className="font-serif font-bold text-xs sm:text-sm text-bakery-dark uppercase tracking-wider">Customize Your Order</h3>
+              </div>
+
+              {/* Custom Cake / Product Message */}
+              {product.customMessageAllowed && (
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[11px] font-bold text-gray-700">Custom Cake Message <span className="text-gray-400 font-normal">(Optional)</span></label>
+                    <span className="text-[10px] font-bold text-gray-400">{200 - customMessage.length} left</span>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={200}
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    placeholder="e.g. Happy 20th Birthday Dhakshu! 🎉"
+                    className="w-full px-3 py-2 bg-white border border-cream-300 rounded-xl text-xs text-bakery-dark font-medium focus:ring-2 focus:ring-bakery-caramel"
+                  />
+                </div>
+              )}
+
+              {/* Special Baking Instructions */}
+              {product.specialInstructionsAllowed && (
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[11px] font-bold text-gray-700">Special Instructions <span className="text-gray-400 font-normal">(Optional)</span></label>
+                    <span className="text-[10px] font-bold text-gray-400">{500 - specialInstructions.length} left</span>
+                  </div>
+                  <textarea
+                    rows={2}
+                    maxLength={500}
+                    value={specialInstructions}
+                    onChange={(e) => setSpecialInstructions(e.target.value)}
+                    placeholder="e.g. Please write name in dark chocolate & keep icing light..."
+                    className="w-full px-3 py-2 bg-white border border-cream-300 rounded-xl text-xs text-bakery-dark font-medium focus:ring-2 focus:ring-bakery-caramel"
+                  />
+                </div>
+              )}
+
+              {/* Eggless & Gift Wrap Options */}
+              <div className="flex flex-wrap gap-4 pt-1">
+                {product.egglessAllowed && (
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-bakery-dark select-none">
+                    <input
+                      type="checkbox"
+                      checked={isEggless}
+                      onChange={(e) => setIsEggless(e.target.checked)}
+                      className="w-4 h-4 text-bakery-caramel border-cream-300 rounded focus:ring-bakery-caramel"
+                    />
+                    <span>100% Eggless Option</span>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-1.5 py-0.5 rounded-md">
+                      +₹{product.egglessSurcharge || 50}
+                    </span>
+                  </label>
+                )}
+
+                {product.giftWrapAllowed && (
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-bakery-dark select-none">
+                    <input
+                      type="checkbox"
+                      checked={isGiftWrapped}
+                      onChange={(e) => setIsGiftWrapped(e.target.checked)}
+                      className="w-4 h-4 text-bakery-caramel border-cream-300 rounded focus:ring-bakery-caramel"
+                    />
+                    <span>Premium Gift Packaging</span>
+                    <span className="text-[10px] bg-amber-100 text-amber-800 font-extrabold px-1.5 py-0.5 rounded-md">
+                      +₹{product.giftWrapFee || 30}
+                    </span>
+                  </label>
+                )}
               </div>
             </div>
           )}

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,6 +82,31 @@ public class Product {
     @Builder.Default
     @Column(name = "review_count")
     private Integer reviewCount = 0;
+
+    // Customization Capabilities
+    @Builder.Default
+    @Column(name = "custom_message_allowed", nullable = false)
+    private boolean customMessageAllowed = true;
+
+    @Builder.Default
+    @Column(name = "special_instructions_allowed", nullable = false)
+    private boolean specialInstructionsAllowed = true;
+
+    @Builder.Default
+    @Column(name = "eggless_allowed", nullable = false)
+    private boolean egglessAllowed = true;
+
+    @Builder.Default
+    @Column(name = "gift_wrap_allowed", nullable = false)
+    private boolean giftWrapAllowed = true;
+
+    @Builder.Default
+    @Column(name = "eggless_surcharge", nullable = false)
+    private BigDecimal egglessSurcharge = new BigDecimal("50.00");
+
+    @Builder.Default
+    @Column(name = "gift_wrap_fee", nullable = false)
+    private BigDecimal giftWrapFee = new BigDecimal("30.00");
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
