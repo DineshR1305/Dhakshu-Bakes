@@ -123,7 +123,7 @@ export default function AdminDashboardPage() {
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-cream-100/60 text-bakery-dark uppercase font-bold text-[10px] tracking-wider">
+            <thead className="bg-cream-100/60 text-bakery-dark uppercase font-bold text-[10px] tracking-wider whitespace-nowrap">
               <tr>
                 <th className="p-3">Order Number</th>
                 <th className="p-3">Customer</th>
@@ -132,7 +132,7 @@ export default function AdminDashboardPage() {
                 <th className="p-3">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-cream-100">
+            <tbody className="divide-y divide-cream-100 whitespace-nowrap">
               {metrics.recentOrders?.map((o) => (
                 <tr key={o.id} className="hover:bg-cream-50">
                   <td className="p-3 font-bold text-bakery-dark">{o.orderNumber}</td>

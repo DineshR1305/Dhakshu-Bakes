@@ -65,7 +65,7 @@ export default function AdminOrdersPage() {
       <div className="bg-white rounded-2xl border border-cream-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-cream-100/60 text-bakery-dark uppercase font-bold text-[10px] tracking-wider">
+            <thead className="bg-cream-100/60 text-bakery-dark uppercase font-bold text-[10px] tracking-wider whitespace-nowrap">
               <tr>
                 <th className="p-3">Order Number</th>
                 <th className="p-3">Customer</th>
@@ -75,7 +75,7 @@ export default function AdminOrdersPage() {
                 <th className="p-3">Baking / Fulfillment Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-cream-100">
+            <tbody className="divide-y divide-cream-100 whitespace-nowrap">
               {filteredOrders.map((o) => (
                 <tr key={o.id} className="hover:bg-cream-50">
                   <td className="p-3 font-bold text-bakery-dark">{o.orderNumber}</td>

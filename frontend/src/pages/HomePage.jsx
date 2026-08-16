@@ -2,7 +2,24 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, ArrowRight, Heart, Award, ShieldCheck, Clock, Truck, ChevronRight } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
+import SEOHead from '../components/SEOHead';
 import api from '../services/api';
+
+const bakerySchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Bakery',
+  'name': 'Dhakshu Bakes',
+  'image': 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800',
+  'description': 'Handcrafted gourmet cakes, artisan pastries, cupcakes, and fresh baked goodies.',
+  'priceRange': '₹200 - ₹2000',
+  'address': {
+    '@type': 'PostalAddress',
+    'addressLocality': 'Bengaluru',
+    'addressRegion': 'Karnataka',
+    'postalCode': '560001',
+    'addressCountry': 'IN'
+  }
+};
 
 export default function HomePage() {
   const [categories, setCategories] = useState([]);
@@ -29,6 +46,11 @@ export default function HomePage() {
 
   return (
     <div className="space-y-16 pb-16">
+      <SEOHead
+        title="Freshly Baked. Made With Love."
+        description="Handcrafted Belgian chocolate cakes, red velvet cupcakes, cookies, and gourmet gift hampers baked fresh daily at Dhakshu Bakes."
+        jsonLd={bakerySchema}
+      />
       
       {/* Hero Section */}
       <section className="relative overflow-hidden bg-gradient-to-b from-cream-200/60 to-cream-100 py-16 sm:py-24 border-b border-cream-200">

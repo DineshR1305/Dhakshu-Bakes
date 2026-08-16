@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Filter, SlidersHorizontal, Search, RefreshCw } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
+import SEOHead from '../components/SEOHead';
 import api from '../services/api';
 
 export default function ShopPage() {
@@ -68,21 +69,56 @@ export default function ShopPage() {
     setSearchParams({});
   };
 
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  const shopTitle = selectedCategory ? `${selectedCategory.toUpperCase()} Cakes & Bakes` : 'Handcrafted Bakery Catalog';
+
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    'itemListElement': [
+      { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'http://localhost:5173/' },
+      { '@type': 'ListItem', 'position': 2, 'name': 'Shop Catalog', 'item': 'http://localhost:5173/shop' },
+      ...(selectedCategory ? [{ '@type': 'ListItem', 'position': 3, 'name': selectedCategory, 'item': `http://localhost:5173/category/${selectedCategory}` }] : [])
+    ]
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
+      <SEOHead
+        title={shopTitle}
+        description={`Explore our fresh collection of ${selectedCategory || 'gourmet cakes, cupcakes, pastries, brownies, and cookies'} baked daily at Dhakshu Bakes.`}
+        jsonLd={breadcrumbSchema}
+      />
       
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-bakery-dark">
+      <div className="mb-6 sm:mb-8">
+        <h1 className="font-serif text-2xl sm:text-4xl font-bold text-bakery-dark">
           {selectedCategory ? `${selectedCategory.toUpperCase()} COLLECTION` : 'OUR COMPLETE BAKERY CATALOG'}
         </h1>
         <p className="text-xs text-gray-500 mt-1">Browse freshly baked handcrafted treats, cakes, and artisan pastries.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+      {/* Mobile Filter Toggle Button */}
+      <div className="lg:hidden mb-4">
+        <button
+          onClick={() => setMobileFilterOpen(!mobileFilterOpen)}
+          aria-expanded={mobileFilterOpen}
+          aria-controls="shop-filter-panel"
+          className="w-full py-2.5 px-4 bg-white border border-cream-200 rounded-xl font-bold text-xs text-bakery-dark flex items-center justify-between shadow-xs"
+        >
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4 text-bakery-caramel" />
+            <span>Filter Products ({products.length})</span>
+          </div>
+          <span className="text-bakery-caramel">{mobileFilterOpen ? 'Hide ▲' : 'Show ▼'}</span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 lg:gap-8">
         
         {/* Sidebar Filters */}
-        <div className="bg-white p-6 rounded-2xl border border-cream-200 shadow-xs h-fit space-y-6">
+        <div id="shop-filter-panel" className={`bg-white p-6 rounded-2xl border border-cream-200 shadow-xs h-fit space-y-6 ${mobileFilterOpen ? 'block' : 'hidden lg:block'}`}>
           <div className="flex items-center justify-between border-b border-cream-200 pb-3">
             <div className="flex items-center gap-2 font-serif font-bold text-base text-bakery-dark">
               <SlidersHorizontal className="w-4 h-4 text-bakery-caramel" />

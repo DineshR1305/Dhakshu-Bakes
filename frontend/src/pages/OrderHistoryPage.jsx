@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, Clock, CheckCircle2, ChevronRight } from 'lucide-react';
+import SEOHead from '../components/SEOHead';
 import api from '../services/api';
 
 export default function OrderHistoryPage() {
@@ -30,7 +31,8 @@ export default function OrderHistoryPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+      <SEOHead title="Order History" noindex={true} />
       <div>
         <h1 className="font-serif text-3xl font-bold text-bakery-dark">MY ORDERS</h1>
         <p className="text-xs text-gray-500 mt-1">Track current baking progress & view past purchases.</p>

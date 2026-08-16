@@ -3,22 +3,24 @@ import { Link } from 'react-router-dom';
 import { Heart, Star, ShoppingBag, Leaf } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
-import { useAuthStore } from '../store/authStore';
+import { useToast } from '../context/ToastContext';
 
 export default function ProductCard({ product }) {
   const { addToCart } = useCartStore();
   const { wishlist, toggleWishlist } = useWishlistStore();
   const { isAuthenticated } = useAuthStore();
+  const { showToast } = useToast();
 
   const isWishlisted = wishlist.products && wishlist.products.some(p => p.id === product.id);
 
   const primaryVariant = product.variants && product.variants.length > 0 ? product.variants[0] : null;
   const primaryImage = product.images && product.images.length > 0 ? product.images[0].imageUrl : 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600';
 
-  const handleQuickAdd = (e) => {
+  const handleQuickAdd = async (e) => {
     e.preventDefault();
     if (primaryVariant) {
-      addToCart(product.id, primaryVariant.id, 1);
+      const res = await addToCart(product.id, primaryVariant.id, 1);
+      showToast(`Added ${product.name} to cart!`, 'success');
     }
   };
 
@@ -26,6 +28,9 @@ export default function ProductCard({ product }) {
     e.preventDefault();
     if (isAuthenticated) {
       toggleWishlist(product.id);
+      showToast(isWishlisted ? `Removed ${product.name} from wishlist` : `Added ${product.name} to wishlist!`, 'info');
+    } else {
+      showToast('Please sign in to save items to your wishlist', 'warning');
     }
   };
 
@@ -50,6 +55,7 @@ export default function ProductCard({ product }) {
       {/* Wishlist Button Overlay */}
       <button
         onClick={handleWishlist}
+        aria-label={isWishlisted ? `Remove ${product.name} from Wishlist` : `Add ${product.name} to Wishlist`}
         className={`absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-cream-200 flex items-center justify-center transition-all ${
           isWishlisted ? 'text-bakery-rose bg-rose-50' : 'text-gray-400 hover:text-bakery-rose hover:bg-white'
         }`}
@@ -88,7 +94,7 @@ export default function ProductCard({ product }) {
           <div className="flex items-center gap-1 mb-2">
             <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
             <span className="text-xs font-bold text-bakery-dark">{product.ratingAvg || 5.0}</span>
-            <span className="text-[11px] text-gray-400">({product.reviewCount || 0})</span>
+            <span className="text-[11px] text-gray-500 font-medium">({product.reviewCount || 0})</span>
           </div>
 
           {/* Pricing & Add Button */}

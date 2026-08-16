@@ -29,7 +29,6 @@ export default function AdminInventoryPage() {
     try {
       const res = await api.put(`/admin/inventory/${variantId}`, { stockQuantity });
       if (res.success) {
-        alert('Stock updated successfully');
         loadInventory();
       }
     } catch (e) {
@@ -47,7 +46,7 @@ export default function AdminInventoryPage() {
       <div className="bg-white rounded-2xl border border-cream-200 shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-cream-100/60 text-bakery-dark uppercase font-bold text-[10px] tracking-wider">
+            <thead className="bg-cream-100/60 text-bakery-dark uppercase font-bold text-[10px] tracking-wider whitespace-nowrap">
               <tr>
                 <th className="p-3">Variant ID</th>
                 <th className="p-3">Stock Quantity</th>
@@ -56,7 +55,7 @@ export default function AdminInventoryPage() {
                 <th className="p-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-cream-100">
+            <tbody className="divide-y divide-cream-100 whitespace-nowrap">
               {inventoryList.map((inv) => (
                 <tr key={inv.id} className="hover:bg-cream-50">
                   <td className="p-3 font-bold text-bakery-dark">Variant #{inv.id}</td>
@@ -83,7 +82,7 @@ export default function AdminInventoryPage() {
                   <td className="p-3 text-right">
                     <button
                       onClick={() => handleSaveStock(inv.id, inv.stockQuantity)}
-                      className="px-3 py-1 bg-bakery-dark text-white font-bold text-xs rounded-lg hover:bg-bakery flex items-center gap-1 ml-auto"
+                      className="px-3 py-1 bg-bakery-dark text-white font-bold text-xs rounded-lg hover:bg-bakery inline-flex items-center gap-1 ml-auto"
                     >
                       <Save className="w-3 h-3" /> Save Stock
                     </button>

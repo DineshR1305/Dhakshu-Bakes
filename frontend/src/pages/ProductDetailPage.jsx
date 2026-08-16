@@ -4,6 +4,8 @@ import { Star, Heart, ShoppingBag, Leaf, ShieldCheck, Truck, Clock, Sparkles, Ch
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import { useAuthStore } from '../store/authStore';
+import { useToast } from '../context/ToastContext';
+import SEOHead from '../components/SEOHead';
 import api from '../services/api';
 
 export default function ProductDetailPage() {
@@ -79,29 +81,65 @@ export default function ProductDetailPage() {
     }
   };
 
+  const [submittingReview, setSubmittingReview] = useState(false);
+
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
     if (!isAuthenticated) {
+      showToast('Please sign in to submit a customer review', 'warning');
       navigate('/login');
       return;
     }
+    if (!newReviewText.trim()) return;
+
+    setSubmittingReview(true);
     try {
       const res = await api.post('/reviews', {
         productId: product.id,
         rating: newRating,
-        reviewText: newReviewText,
+        reviewText: newReviewText.trim(),
       });
-      if (res.success) {
+      if (res.success && res.data) {
         setReviews([res.data, ...reviews]);
         setNewReviewText('');
+        showToast('Thank you! Your review has been submitted for moderation.', 'success');
       }
     } catch (e) {
-      console.error(e);
+      showToast(e.message || 'Error submitting review', 'error');
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
+  const productSchema = product ? {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    'name': product.name,
+    'description': product.description,
+    'image': selectedImage || 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800',
+    'offers': {
+      '@type': 'Offer',
+      'price': selectedVariant?.discountPrice || selectedVariant?.price || 0,
+      'priceCurrency': 'INR',
+      'availability': selectedVariant?.outOfStock ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+      'url': `http://localhost:5173/product/${product.slug}`
+    },
+    'aggregateRating': (product.ratingAvg && product.reviewCount && product.reviewCount > 0) ? {
+      '@type': 'AggregateRating',
+      'ratingValue': product.ratingAvg,
+      'reviewCount': product.reviewCount
+    } : undefined
+  } : null;
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
+      <SEOHead
+        title={product.name}
+        description={product.description}
+        image={selectedImage}
+        type="product"
+        jsonLd={productSchema}
+      />
       
       {/* Top Product Hero Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -155,7 +193,7 @@ export default function ProductDetailPage() {
                 {'★'.repeat(Math.round(product.ratingAvg || 5))}
               </div>
               <span className="text-xs font-bold text-bakery-dark">{product.ratingAvg}</span>
-              <span className="text-xs text-gray-400">({product.reviewCount} customer reviews)</span>
+              <span className="text-xs text-gray-500 font-medium">({product.reviewCount} customer reviews)</span>
             </div>
           </div>
 
@@ -205,48 +243,82 @@ export default function ProductDetailPage() {
           )}
 
           {/* Quantity & Action Buttons */}
-          <div className="flex items-center gap-4 pt-2">
-            <div className="flex items-center bg-white border border-cream-300 rounded-full">
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between gap-3 sm:hidden">
+              <div className="flex items-center bg-white border border-cream-300 rounded-full">
+                <button
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  aria-label="Decrease quantity"
+                  className="px-3.5 py-2 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-l-full min-h-[44px]"
+                >
+                  -
+                </button>
+                <span className="px-4 text-xs font-extrabold text-bakery-dark">{quantity}</span>
+                <button
+                  onClick={() => setQuantity(quantity + 1)}
+                  aria-label="Increase quantity"
+                  className="px-3.5 py-2 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-r-full min-h-[44px]"
+                >
+                  +
+                </button>
+              </div>
+
               <button
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                className="px-3.5 py-2 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-l-full"
+                onClick={() => isAuthenticated && toggleWishlist(product.id)}
+                aria-label={isWishlisted ? `Remove ${product.name} from Wishlist` : `Add ${product.name} to Wishlist`}
+                className={`p-3 rounded-full border border-cream-300 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
+                  isWishlisted ? 'bg-rose-50 text-bakery-rose' : 'bg-white text-gray-400 hover:text-bakery-rose'
+                }`}
               >
-                -
-              </button>
-              <span className="px-4 text-xs font-extrabold text-bakery-dark">{quantity}</span>
-              <button
-                onClick={() => setQuantity(quantity + 1)}
-                className="px-3.5 py-2 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-r-full"
-              >
-                +
+                <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-bakery-rose' : ''}`} />
               </button>
             </div>
 
-            <button
-              onClick={handleAddToCart}
-              disabled={selectedVariant?.outOfStock}
-              className="flex-1 py-3 bg-bakery-caramel hover:bg-bakery text-white font-bold text-xs sm:text-sm rounded-full shadow-md transition-all flex items-center justify-center gap-2"
-            >
-              <ShoppingBag className="w-4 h-4" />
-              <span>{selectedVariant?.outOfStock ? 'Out of Stock' : 'Add To Cart'}</span>
-            </button>
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="hidden sm:flex items-center bg-white border border-cream-300 rounded-full">
+                <button
+                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                  aria-label="Decrease quantity"
+                  className="px-3.5 py-2 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-l-full"
+                >
+                  -
+                </button>
+                <span className="px-4 text-xs font-extrabold text-bakery-dark">{quantity}</span>
+                <button
+                  onClick={() => setQuantity(quantity + 1)}
+                  aria-label="Increase quantity"
+                  className="px-3.5 py-2 text-bakery-dark font-bold text-sm hover:bg-cream-100 rounded-r-full"
+                >
+                  +
+                </button>
+              </div>
 
-            <button
-              onClick={handleBuyNow}
-              disabled={selectedVariant?.outOfStock}
-              className="py-3 px-6 bg-bakery-dark hover:bg-black text-white font-bold text-xs sm:text-sm rounded-full shadow-md transition-all"
-            >
-              Buy Now
-            </button>
+              <button
+                onClick={handleAddToCart}
+                disabled={selectedVariant?.outOfStock}
+                className="w-full sm:flex-1 py-3 px-4 bg-bakery-caramel hover:bg-bakery text-white font-bold text-xs sm:text-sm rounded-full shadow-md transition-all flex items-center justify-center gap-2 min-h-[44px]"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>{selectedVariant?.outOfStock ? 'Out of Stock' : 'Add To Cart'}</span>
+              </button>
 
-            <button
-              onClick={() => isAuthenticated && toggleWishlist(product.id)}
-              className={`p-3 rounded-full border border-cream-300 transition-colors ${
-                isWishlisted ? 'bg-rose-50 text-bakery-rose' : 'bg-white text-gray-400 hover:text-bakery-rose'
-              }`}
-            >
-              <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-bakery-rose' : ''}`} />
-            </button>
+              <button
+                onClick={handleBuyNow}
+                disabled={selectedVariant?.outOfStock}
+                className="w-full sm:w-auto py-3 px-6 bg-bakery-dark hover:bg-black text-white font-bold text-xs sm:text-sm rounded-full shadow-md transition-all min-h-[44px]"
+              >
+                Buy Now
+              </button>
+
+              <button
+                onClick={() => isAuthenticated && toggleWishlist(product.id)}
+                className={`hidden sm:flex p-3 rounded-full border border-cream-300 transition-colors min-h-[44px] min-w-[44px] items-center justify-center ${
+                  isWishlisted ? 'bg-rose-50 text-bakery-rose' : 'bg-white text-gray-400 hover:text-bakery-rose'
+                }`}
+              >
+                <Heart className={`w-5 h-5 ${isWishlisted ? 'fill-bakery-rose' : ''}`} />
+              </button>
+            </div>
           </div>
 
           {/* Trust Guarantees */}
@@ -351,7 +423,7 @@ export default function ProductDetailPage() {
                       <div className="flex text-amber-400 text-xs">{'★'.repeat(r.rating)}</div>
                     </div>
                     <p className="text-xs text-gray-600">{r.reviewText}</p>
-                    <span className="text-[10px] text-gray-400 block mt-1">Verified Purchase</span>
+                    <span className="text-[10px] text-gray-500 font-semibold block mt-1">Verified Purchase</span>
                   </div>
                 ))}
               </div>

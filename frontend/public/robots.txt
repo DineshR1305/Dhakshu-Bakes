@@ -1,0 +1,25 @@
+# Dhakshu Bakes Robots Configuration
+User-agent: *
+Allow: /
+Allow: /shop
+Allow: /category/
+Allow: /product/
+Allow: /gifts
+Allow: /subscriptions
+Allow: /stores
+Allow: /wholesale
+Allow: /contact
+Allow: /faq
+
+# Disallow Private & Administrative Routes
+Disallow: /admin/
+Disallow: /checkout
+Disallow: /account
+Disallow: /orders/
+Disallow: /cart
+Disallow: /wishlist
+Disallow: /login
+Disallow: /register
+Disallow: /unauthorized
+
+Sitemap: http://localhost:5173/sitemap.xml

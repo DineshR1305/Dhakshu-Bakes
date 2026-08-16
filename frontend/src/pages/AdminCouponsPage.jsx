@@ -95,30 +95,32 @@ export default function AdminCouponsPage() {
 
       {/* Coupons Table */}
       <div className="bg-white rounded-2xl border border-cream-200 shadow-xs overflow-hidden">
-        <table className="w-full text-left text-xs">
-          <thead className="bg-cream-100/60 text-bakery-dark uppercase font-bold text-[10px] tracking-wider">
-            <tr>
-              <th className="p-3">Code</th>
-              <th className="p-3">Type</th>
-              <th className="p-3">Value</th>
-              <th className="p-3">Min Order</th>
-              <th className="p-3">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-cream-100">
-            {coupons.map((c) => (
-              <tr key={c.id}>
-                <td className="p-3 font-bold text-bakery-dark">{c.code}</td>
-                <td className="p-3">{c.discountType}</td>
-                <td className="p-3 font-bold text-emerald-700">{c.discountType === 'PERCENTAGE' ? `${c.discountValue}%` : `₹${c.discountValue}`}</td>
-                <td className="p-3">₹{c.minOrderAmount}</td>
-                <td className="p-3">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Active</span>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-cream-100/60 text-bakery-dark uppercase font-bold text-[10px] tracking-wider whitespace-nowrap">
+              <tr>
+                <th className="p-3">Code</th>
+                <th className="p-3">Type</th>
+                <th className="p-3">Value</th>
+                <th className="p-3">Min Order</th>
+                <th className="p-3">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-cream-100 whitespace-nowrap">
+              {coupons.map((c) => (
+                <tr key={c.id}>
+                  <td className="p-3 font-bold text-bakery-dark">{c.code}</td>
+                  <td className="p-3">{c.discountType}</td>
+                  <td className="p-3 font-bold text-emerald-700">{c.discountType === 'PERCENTAGE' ? `${c.discountValue}%` : `₹${c.discountValue}`}</td>
+                  <td className="p-3">₹{c.minOrderAmount}</td>
+                  <td className="p-3">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Active</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
