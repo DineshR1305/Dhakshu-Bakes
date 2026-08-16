@@ -1,0 +1,38 @@
+# Environment & Secret Files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+*.pfx
+*.p12
+*.crt
+credentials.json
+secrets.yml
+secrets.json
+
+# Java / Maven Backend
+backend/target/
+backend/.mvn/
+backend/*.log
+backend/h2data/
+*.class
+*.jar
+*.war
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+frontend/.vite/
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

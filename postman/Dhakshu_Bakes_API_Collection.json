@@ -1,0 +1,170 @@
+{
+  "info": {
+    "name": "Dhakshu Bakes — Full-Stack E-Commerce API Collection",
+    "description": "Postman API Collection for Dhakshu Bakes Bakery Platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "BASE_URL", "value": "http://localhost:8080/api/v1" },
+    { "key": "JWT_TOKEN", "value": "" },
+    { "key": "ADMIN_TOKEN", "value": "" },
+    { "key": "USER_TOKEN", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Customer Login",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer@dhakshubakes.local\",\n  \"password\": \"Customer@12345\"\n}"
+            },
+            "url": { "raw": "{{BASE_URL}}/auth/login", "host": ["{{BASE_URL}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Admin Login",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@dhakshubakes.local\",\n  \"password\": \"Admin@12345\"\n}"
+            },
+            "url": { "raw": "{{BASE_URL}}/auth/login", "host": ["{{BASE_URL}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "User Registration",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Rahul Sharma\",\n  \"email\": \"rahul@example.com\",\n  \"password\": \"Rahul@12345\",\n  \"phone\": \"+91 9812345678\"\n}"
+            },
+            "url": { "raw": "{{BASE_URL}}/auth/register", "host": ["{{BASE_URL}}"], "path": ["auth", "register"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Products & Catalog",
+      "item": [
+        {
+          "name": "Get All Products (Search & Filter)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{BASE_URL}}/products?category=cakes&isEggless=true&sort=price-asc", "host": ["{{BASE_URL}}"], "path": ["products"] }
+          }
+        },
+        {
+          "name": "Get Product Details by Slug",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{BASE_URL}}/products/chocolate-truffle-cake", "host": ["{{BASE_URL}}"], "path": ["products", "chocolate-truffle-cake"] }
+          }
+        },
+        {
+          "name": "Get Categories",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{BASE_URL}}/categories", "host": ["{{BASE_URL}}"], "path": ["categories"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cart & Wishlist",
+      "item": [
+        {
+          "name": "Get Cart",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{JWT_TOKEN}}" } ],
+            "url": { "raw": "{{BASE_URL}}/cart", "host": ["{{BASE_URL}}"], "path": ["cart"] }
+          }
+        },
+        {
+          "name": "Add Item to Cart",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{JWT_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"productId\": 1,\n  \"variantId\": 1,\n  \"quantity\": 1\n}"
+            },
+            "url": { "raw": "{{BASE_URL}}/cart/items", "host": ["{{BASE_URL}}"], "path": ["cart", "items"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Checkout & Payments",
+      "item": [
+        {
+          "name": "Validate Coupon",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"WELCOME10\",\n  \"orderSubtotal\": 699.00\n}"
+            },
+            "url": { "raw": "{{BASE_URL}}/coupons/validate", "host": ["{{BASE_URL}}"], "path": ["coupons", "validate"] }
+          }
+        },
+        {
+          "name": "Create Razorpay Payment Order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{JWT_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": 1\n}"
+            },
+            "url": { "raw": "{{BASE_URL}}/payments/create-razorpay-order", "host": ["{{BASE_URL}}"], "path": ["payments", "create-razorpay-order"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Panel",
+      "item": [
+        {
+          "name": "Get Dashboard Metrics",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{ADMIN_TOKEN}}" } ],
+            "url": { "raw": "{{BASE_URL}}/admin/dashboard", "host": ["{{BASE_URL}}"], "path": ["admin", "dashboard"] }
+          }
+        },
+        {
+          "name": "Update Order Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{ADMIN_TOKEN}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"BAKING\"\n}"
+            },
+            "url": { "raw": "{{BASE_URL}}/admin/orders/1/status", "host": ["{{BASE_URL}}"], "path": ["admin", "orders", "1", "status"] }
+          }
+        }
+      ]
+    }
+  ]
+}
