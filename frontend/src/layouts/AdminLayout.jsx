@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, ShoppingBag, Package, Tag, Shield, LogOut, ArrowLeft, Menu, X } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Package, Tag, Shield, LogOut, ArrowLeft, Menu, X, MessageSquare } from 'lucide-react';
 import SEOHead from '../components/SEOHead';
 import { useAuthStore } from '../store/authStore';
 
@@ -86,6 +86,7 @@ export default function AdminLayout() {
     { label: 'Order Fulfillment', path: '/admin/orders', icon: ShoppingBag },
     { label: 'Inventory Control', path: '/admin/inventory', icon: Package },
     { label: 'Coupons & Vouchers', path: '/admin/coupons', icon: Tag },
+    { label: 'Review Moderation', path: '/admin/reviews', icon: MessageSquare },
   ];
 
   return (

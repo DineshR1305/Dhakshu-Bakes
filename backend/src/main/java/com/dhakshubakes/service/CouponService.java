@@ -6,6 +6,7 @@ import com.dhakshubakes.entity.Coupon;
 import com.dhakshubakes.entity.CouponUsage;
 import com.dhakshubakes.entity.Order;
 import com.dhakshubakes.entity.User;
+import com.dhakshubakes.exception.ResourceNotFoundException;
 import com.dhakshubakes.repository.CouponRepository;
 import com.dhakshubakes.repository.CouponUsageRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -24,6 +27,17 @@ public class CouponService {
 
     private final CouponRepository couponRepository;
     private final CouponUsageRepository couponUsageRepository;
+
+    @Transactional(readOnly = true)
+    public ApiResponse<List<Coupon>> getActiveCoupons() {
+        LocalDate today = LocalDate.now();
+        List<Coupon> active = couponRepository.findByIsActiveTrue().stream()
+                .filter(c -> c.getStartDate() == null || !today.isBefore(c.getStartDate()))
+                .filter(c -> c.getExpiryDate() == null || !today.isAfter(c.getExpiryDate()))
+                .filter(c -> c.getUsageLimit() == null || c.getUsedCount() < c.getUsageLimit())
+                .collect(Collectors.toList());
+        return ApiResponse.success("Active coupons fetched", active);
+    }
 
     @Transactional(readOnly = true)
     public ApiResponse<CouponDTO.ValidationResponse> validateCoupon(CouponDTO.ValidateRequest request) {
@@ -116,5 +130,32 @@ public class CouponService {
             return val.getData().getCalculatedDiscount();
         }
         return BigDecimal.ZERO;
+    }
+
+    @Transactional
+    public ApiResponse<Coupon> updateCoupon(Long id, Coupon request) {
+        Coupon coupon = couponRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Coupon not found with ID: " + id));
+
+        coupon.setCode(request.getCode().trim().toUpperCase());
+        coupon.setDiscountType(request.getDiscountType());
+        coupon.setDiscountValue(request.getDiscountValue());
+        coupon.setMinOrderAmount(request.getMinOrderAmount());
+        coupon.setMaxDiscountAmount(request.getMaxDiscountAmount());
+        coupon.setStartDate(request.getStartDate());
+        coupon.setExpiryDate(request.getExpiryDate());
+        coupon.setUsageLimit(request.getUsageLimit());
+        coupon.setActive(request.isActive());
+
+        Coupon saved = couponRepository.save(coupon);
+        return ApiResponse.success("Coupon updated successfully", saved);
+    }
+
+    @Transactional
+    public ApiResponse<Void> deleteCoupon(Long id) {
+        Coupon coupon = couponRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Coupon not found with ID: " + id));
+        couponRepository.delete(coupon);
+        return ApiResponse.success("Coupon deleted successfully", null);
     }
 }

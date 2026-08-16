@@ -51,6 +51,10 @@ public class Review {
     @Column(nullable = false)
     private String status = "APPROVED"; // PENDING, APPROVED, REJECTED
 
+    @Builder.Default
+    @Column(name = "helpful_count", nullable = false)
+    private Integer helpfulCount = 0;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

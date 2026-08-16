@@ -41,6 +41,21 @@ public class ReviewDTO {
         private String imageUrl;
         private boolean isVerifiedPurchase;
         private String status;
+        private Integer helpfulCount;
         private LocalDateTime createdAt;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RatingSummaryResponse {
+        private Double averageRating;
+        private Integer totalReviews;
+        private Integer fiveStarCount;
+        private Integer fourStarCount;
+        private Integer threeStarCount;
+        private Integer twoStarCount;
+        private Integer oneStarCount;
     }
 }

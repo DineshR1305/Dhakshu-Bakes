@@ -40,6 +40,7 @@ const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'));
 const AdminOrdersPage = lazy(() => import('./pages/AdminOrdersPage'));
 const AdminInventoryPage = lazy(() => import('./pages/AdminInventoryPage'));
 const AdminCouponsPage = lazy(() => import('./pages/AdminCouponsPage'));
+const AdminReviewsPage = lazy(() => import('./pages/AdminReviewsPage'));
 
 export default function App() {
   const { checkAuth } = useAuthStore();
@@ -97,6 +98,7 @@ export default function App() {
                     <Route path="orders" element={<AdminOrdersPage />} />
                     <Route path="inventory" element={<AdminInventoryPage />} />
                     <Route path="coupons" element={<AdminCouponsPage />} />
+                    <Route path="reviews" element={<AdminReviewsPage />} />
                   </Route>
 
                   {/* Catch-all 404 Route */}

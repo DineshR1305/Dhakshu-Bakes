@@ -1,54 +1,32 @@
 import React, { useEffect, useRef } from 'react';
+import { ShoppingBag, X, Trash2, ArrowRight, Sparkles } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { X, ShoppingBag, Trash2, ArrowRight, Minus, Plus } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import FreeDeliveryProgress from './FreeDeliveryProgress';
+import CouponSection from './CouponSection';
 
 export default function CartDrawer() {
   const { cart, isDrawerOpen, closeDrawer, updateQuantity, removeItem } = useCartStore();
   const navigate = useNavigate();
   const drawerRef = useRef(null);
-  const closeButtonRef = useRef(null);
 
   useEffect(() => {
     if (isDrawerOpen) {
       document.body.style.overflow = 'hidden';
-      // Focus the close button
-      setTimeout(() => closeButtonRef.current?.focus(), 50);
-
       const handleKeyDown = (e) => {
-        if (e.key === 'Escape') {
-          closeDrawer();
-        }
-        if (e.key === 'Tab' && drawerRef.current) {
-          const focusables = drawerRef.current.querySelectorAll(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          );
-          if (focusables.length === 0) return;
-          const first = focusables[0];
-          const last = focusables[focusables.length - 1];
-
-          if (e.shiftKey) {
-            if (document.activeElement === first) {
-              last.focus();
-              e.preventDefault();
-            }
-          } else {
-            if (document.activeElement === last) {
-              first.focus();
-              e.preventDefault();
-            }
-          }
-        }
+        if (e.key === 'Escape') closeDrawer();
       };
-
       window.addEventListener('keydown', handleKeyDown);
+
+      // Focus management: move focus into drawer
+      if (drawerRef.current) {
+        drawerRef.current.focus();
+      }
+
       return () => {
         window.removeEventListener('keydown', handleKeyDown);
         document.body.style.overflow = 'unset';
       };
-    } else {
-      document.body.style.overflow = 'unset';
     }
   }, [isDrawerOpen, closeDrawer]);
 
@@ -60,10 +38,15 @@ export default function CartDrawer() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true" aria-label="Shopping Cart Drawer">
-      {/* Backdrop */}
+    <div
+      className="fixed inset-0 z-50 overflow-hidden animate-fadeIn"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Shopping Cart Side Panel Drawer"
+    >
+      {/* Backdrop overlay */}
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity animate-fadeIn"
+        className="absolute inset-0 bg-black/60 backdrop-blur-xs transition-opacity"
         onClick={closeDrawer}
         aria-hidden="true"
       />
@@ -71,52 +54,51 @@ export default function CartDrawer() {
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
         <div
           ref={drawerRef}
-          className="w-screen max-w-md bg-white shadow-2xl flex flex-col justify-between overflow-hidden animate-slideLeft"
+          tabIndex={-1}
+          className="w-screen max-w-md bg-white border-l border-cream-200 shadow-2xl flex flex-col focus:outline-none animate-slideLeft"
         >
           {/* Drawer Header */}
-          <div className="p-4 sm:p-5 border-b border-cream-200 bg-cream-50/80 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="p-4 sm:p-5 border-b border-cream-200 flex items-center justify-between bg-cream-50/80 shrink-0">
+            <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-bakery-light border border-bakery-caramel flex items-center justify-center text-bakery">
-                <ShoppingBag className="w-4 h-4 text-bakery-rose" />
+                <ShoppingBag className="w-4 h-4 text-bakery-caramel" />
               </div>
               <div>
-                <h2 className="font-serif text-base sm:text-lg font-bold text-bakery-dark">Your Shopping Cart</h2>
-                <span className="text-[11px] text-gray-500 font-semibold">
-                  {cart.itemCount || 0} {cart.itemCount === 1 ? 'item' : 'items'}
-                </span>
+                <h3 className="font-serif font-bold text-base text-bakery-dark">Your Cart</h3>
+                <p className="text-[11px] text-gray-500 font-semibold">{cart.itemCount} item(s) selected</p>
               </div>
             </div>
+
             <button
-              ref={closeButtonRef}
               onClick={closeDrawer}
               aria-label="Close cart drawer"
-              className="p-2 text-gray-400 hover:text-bakery-dark hover:bg-cream-100 rounded-full transition-colors focus:ring-2 focus:ring-bakery-caramel"
+              className="p-1.5 rounded-full text-gray-400 hover:text-bakery-dark hover:bg-cream-100 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Free Delivery Progress Banner */}
-          <div className="px-4 pt-3 pb-1 border-b border-cream-100 bg-white">
-            <FreeDeliveryProgress subtotal={cart.subtotal || 0} />
-          </div>
+          {/* Free Delivery Banner */}
+          {cart.items && cart.items.length > 0 && (
+            <div className="p-4 bg-white border-b border-cream-100 shrink-0">
+              <FreeDeliveryProgress subtotal={cart.subtotal} />
+            </div>
+          )}
 
-          {/* Items List / Content */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+          {/* Drawer Body - Items List */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
             {!cart.items || cart.items.length === 0 ? (
-              <div className="py-16 text-center space-y-4">
+              <div className="text-center py-16 space-y-4">
                 <div className="w-16 h-16 bg-cream-100 rounded-full flex items-center justify-center mx-auto text-bakery-caramel">
                   <ShoppingBag className="w-8 h-8" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="font-serif text-lg font-bold text-bakery-dark">Your cart is empty</h3>
-                  <p className="text-xs text-gray-500 max-w-xs mx-auto">
-                    Looks like you haven't added any fresh baked treats to your cart yet.
-                  </p>
+                  <h4 className="font-serif font-bold text-lg text-bakery-dark">Your Cart is Empty</h4>
+                  <p className="text-xs text-gray-500 max-w-xs mx-auto">Explore our fresh cakes and pastries to add treat items.</p>
                 </div>
                 <button
                   onClick={() => handleNavigate('/shop')}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-bakery-dark hover:bg-bakery text-white font-bold text-xs rounded-full transition-colors shadow-sm"
+                  className="px-6 py-2.5 bg-bakery-dark hover:bg-bakery text-white font-bold text-xs rounded-full shadow-md transition-colors inline-flex items-center gap-1.5"
                 >
                   <span>Explore Bakery Shop</span>
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -158,20 +140,18 @@ export default function CartDrawer() {
                     <div className="inline-flex items-center bg-cream-100 border border-cream-300 rounded-full p-0.5 shadow-2xs">
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        aria-label={`Decrease quantity of ${item.productName}`}
-                        className="w-6 h-6 rounded-full bg-white hover:bg-cream-200 text-bakery-dark flex items-center justify-center transition-colors shadow-xs"
+                        aria-label="Decrease item quantity"
+                        className="px-2 py-0.5 font-bold text-xs hover:bg-cream-200 rounded-l-full min-h-[28px]"
                       >
-                        <Minus className="w-3 h-3" />
+                        -
                       </button>
-                      <span className="w-6 text-center text-xs font-extrabold text-bakery-dark select-none">
-                        {item.quantity}
-                      </span>
+                      <span className="px-2 font-extrabold text-xs text-bakery-dark">{item.quantity}</span>
                       <button
                         onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        aria-label={`Increase quantity of ${item.productName}`}
-                        className="w-6 h-6 rounded-full bg-bakery-caramel hover:bg-bakery text-white flex items-center justify-center transition-colors shadow-xs"
+                        aria-label="Increase item quantity"
+                        className="px-2 py-0.5 font-bold text-xs hover:bg-cream-200 rounded-r-full min-h-[28px]"
                       >
-                        <Plus className="w-3 h-3" />
+                        +
                       </button>
                     </div>
                   </div>
@@ -183,12 +163,14 @@ export default function CartDrawer() {
           {/* Drawer Footer */}
           {cart.items && cart.items.length > 0 && (
             <div className="p-4 sm:p-5 border-t border-cream-200 bg-cream-50/90 space-y-3 shrink-0">
-              <div className="flex items-center justify-between text-sm">
+              <CouponSection subtotal={cart.subtotal} />
+
+              <div className="flex items-center justify-between text-sm pt-1">
                 <span className="font-serif font-bold text-bakery-dark">Subtotal</span>
                 <span className="font-extrabold text-lg text-bakery-dark">₹{cart.subtotal}</span>
               </div>
               <p className="text-[10px] text-gray-500 leading-tight">
-                Taxes and shipping calculated at checkout.
+                Taxes and delivery fee calculated at checkout.
               </p>
               <div className="grid grid-cols-2 gap-2.5 pt-1">
                 <button

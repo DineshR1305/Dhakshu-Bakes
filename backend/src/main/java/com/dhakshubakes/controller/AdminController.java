@@ -7,6 +7,7 @@ import com.dhakshubakes.dto.ReviewDTO;
 import com.dhakshubakes.entity.*;
 import com.dhakshubakes.repository.*;
 import com.dhakshubakes.service.AdminService;
+import com.dhakshubakes.service.CouponService;
 import com.dhakshubakes.service.OrderService;
 import com.dhakshubakes.service.ReviewService;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class AdminController {
     private final ContactInquiryRepository contactRepository;
     private final OrderService orderService;
     private final ReviewService reviewService;
+    private final CouponService couponService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<ApiResponse<AdminDashboardDTO>> getDashboard() {
@@ -80,12 +82,22 @@ public class AdminController {
         return ResponseEntity.ok(adminService.updateInventoryStock(variantId, stock));
     }
 
+    @GetMapping("/reviews")
+    public ResponseEntity<ApiResponse<List<ReviewDTO.Response>>> getAllReviews() {
+        return ResponseEntity.ok(reviewService.getAllReviewsForAdmin());
+    }
+
     @PutMapping("/reviews/{reviewId}/status")
     public ResponseEntity<ApiResponse<ReviewDTO.Response>> updateReviewStatus(
             @PathVariable Long reviewId,
             @RequestBody Map<String, String> body) {
         String status = body.get("status");
         return ResponseEntity.ok(reviewService.updateReviewStatus(reviewId, status));
+    }
+
+    @DeleteMapping("/reviews/{reviewId}")
+    public ResponseEntity<ApiResponse<Void>> deleteReview(@PathVariable Long reviewId) {
+        return ResponseEntity.ok(reviewService.deleteReview(reviewId));
     }
 
     @GetMapping("/coupons")
@@ -96,6 +108,16 @@ public class AdminController {
     @PostMapping("/coupons")
     public ResponseEntity<ApiResponse<Coupon>> createCoupon(@RequestBody Coupon coupon) {
         return ResponseEntity.ok(ApiResponse.success("Coupon created", couponRepository.save(coupon)));
+    }
+
+    @PutMapping("/coupons/{id}")
+    public ResponseEntity<ApiResponse<Coupon>> updateCoupon(@PathVariable Long id, @RequestBody Coupon coupon) {
+        return ResponseEntity.ok(couponService.updateCoupon(id, coupon));
+    }
+
+    @DeleteMapping("/coupons/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteCoupon(@PathVariable Long id) {
+        return ResponseEntity.ok(couponService.deleteCoupon(id));
     }
 
     @GetMapping("/wholesale")

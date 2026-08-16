@@ -12,6 +12,7 @@ import ImageLightboxModal from '../components/ImageLightboxModal';
 import RecentlyViewed from '../components/RecentlyViewed';
 import RelatedProducts from '../components/RelatedProducts';
 import { addRecentlyViewed } from '../utils/recentlyViewed';
+import ProductReviewsSection from '../components/ProductReviewsSection';
 import api from '../services/api';
 
 export default function ProductDetailPage() {
@@ -470,59 +471,7 @@ export default function ProductDetailPage() {
           )}
 
           {activeTab === 'reviews' && (
-            <div className="space-y-8">
-              {/* Review Form */}
-              <div className="bg-cream-100/60 p-5 rounded-2xl border border-cream-200 max-w-xl">
-                <h4 className="font-serif font-bold text-sm text-bakery-dark mb-3">Write a Customer Review</h4>
-                <form onSubmit={handleReviewSubmit} className="space-y-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-600 mb-1">Star Rating</label>
-                    <select
-                      value={newRating}
-                      onChange={(e) => setNewRating(Number(e.target.value))}
-                      className="bg-white border border-cream-300 rounded-md px-3 py-1 text-xs"
-                    >
-                      <option value={5}>5 Stars — Outstanding</option>
-                      <option value={4}>4 Stars — Very Good</option>
-                      <option value={3}>3 Stars — Average</option>
-                      <option value={2}>2 Stars — Poor</option>
-                      <option value={1}>1 Star — Terrible</option>
-                    </select>
-                  </div>
-                  <div>
-                    <textarea
-                      required
-                      placeholder="Share your experience with this bake..."
-                      rows={3}
-                      value={newReviewText}
-                      onChange={(e) => setNewReviewText(e.target.value)}
-                      className="w-full p-2.5 bg-white border border-cream-300 rounded-lg text-xs"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={submittingReview}
-                    className="px-5 py-2 bg-bakery-dark text-white font-bold text-xs rounded-full hover:bg-bakery disabled:opacity-50"
-                  >
-                    {submittingReview ? 'Submitting...' : 'Submit Review'}
-                  </button>
-                </form>
-              </div>
-
-              {/* Reviews List */}
-              <div className="space-y-4">
-                {reviews.map((r) => (
-                  <div key={r.id} className="p-4 bg-cream-50 rounded-xl border border-cream-200">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-bold text-bakery-dark text-xs">{r.userName}</span>
-                      <div className="flex text-amber-400 text-xs">{'★'.repeat(r.rating || 5)}</div>
-                    </div>
-                    <p className="text-xs text-gray-600">{r.reviewText}</p>
-                    <span className="text-[10px] text-gray-500 font-semibold block mt-1">Verified Purchase</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <ProductReviewsSection productId={product.id} productName={product.name} />
           )}
         </div>
 
