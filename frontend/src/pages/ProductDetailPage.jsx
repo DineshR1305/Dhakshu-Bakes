@@ -122,7 +122,7 @@ export default function ProductDetailPage() {
       'price': selectedVariant?.discountPrice || selectedVariant?.price || 0,
       'priceCurrency': 'INR',
       'availability': selectedVariant?.outOfStock ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
-      'url': `http://localhost:5173/product/${product.slug}`
+      'url': `${window.location.origin}/product/${product.slug}`
     },
     'aggregateRating': (product.ratingAvg && product.reviewCount && product.reviewCount > 0) ? {
       '@type': 'AggregateRating',

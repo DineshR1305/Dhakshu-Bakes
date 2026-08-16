@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 const DEFAULT_TITLE = 'Dhakshu Bakes — Freshly Baked. Made With Love.';
 const DEFAULT_DESCRIPTION = 'Discover freshly baked handcrafted cakes, cookies, pastries, brownies, and artisan breads at Dhakshu Bakes.';
 const DEFAULT_IMAGE = 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=1200';
-const DOMAIN = 'http://localhost:5173';
+const DOMAIN = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
 
 export default function SEOHead({
   title,

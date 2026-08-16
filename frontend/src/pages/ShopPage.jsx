@@ -87,9 +87,9 @@ export default function ShopPage() {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
     'itemListElement': [
-      { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'http://localhost:5173/' },
-      { '@type': 'ListItem', 'position': 2, 'name': 'Shop Catalog', 'item': 'http://localhost:5173/shop' },
-      ...(selectedCategory ? [{ '@type': 'ListItem', 'position': 3, 'name': selectedCategory, 'item': `http://localhost:5173/category/${selectedCategory}` }] : [])
+      { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': `${window.location.origin}/` },
+      { '@type': 'ListItem', 'position': 2, 'name': 'Shop Catalog', 'item': `${window.location.origin}/shop` },
+      ...(selectedCategory ? [{ '@type': 'ListItem', 'position': 3, 'name': selectedCategory, 'item': `${window.location.origin}/category/${selectedCategory}` }] : [])
     ]
   };
 
