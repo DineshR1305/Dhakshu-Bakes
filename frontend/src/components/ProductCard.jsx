@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { Heart, Star, ShoppingBag, Leaf } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
+import { useAuthStore } from '../store/authStore';
 import { useToast } from '../context/ToastContext';
-
 export default function ProductCard({ product }) {
   const { addToCart } = useCartStore();
   const { wishlist, toggleWishlist } = useWishlistStore();
@@ -135,3 +135,4 @@ export default function ProductCard({ product }) {
     </div>
   );
 }
+
